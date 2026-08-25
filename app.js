@@ -12,7 +12,7 @@
   let activeUseId = null;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 
   function show(view) {
     $('authView').classList.toggle('hidden', view !== 'auth');
@@ -22,6 +22,24 @@
   function setStatus(id, msg, isError=false) {
     const el = $(id); el.textContent = msg || '';
     el.style.color = isError ? '#fca5a5' : '';
+  }
+
+  function getAuthFields() {
+    const email = $('email').value.trim();
+    const password = $('password').value;
+    if (!email || !password) {
+      setStatus('authStatus', 'اكتب البريد الإلكتروني وكلمة المرور أولاً.', true);
+      return null;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setStatus('authStatus', 'اكتب بريد إلكتروني صحيح.', true);
+      return null;
+    }
+    if (password.length < 6) {
+      setStatus('authStatus', 'كلمة المرور لازم تكون 6 أحرف على الأقل.', true);
+      return null;
+    }
+    return { email, password };
   }
 
   async function refreshSession() {
@@ -70,18 +88,22 @@
   }
 
   $('loginBtn').addEventListener('click', async () => {
+    const fields = getAuthFields();
+    if (!fields) return;
     setStatus('authStatus','جاري تسجيل الدخول...');
-    const { error } = await db.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+    const { error } = await db.auth.signInWithPassword(fields);
     if (error) return setStatus('authStatus', error.message, true);
     setStatus('authStatus','');
     await refreshSession();
   });
 
   $('signupBtn').addEventListener('click', async () => {
+    const fields = getAuthFields();
+    if (!fields) return;
     setStatus('authStatus','جاري إنشاء الحساب...');
-    const { data, error } = await db.auth.signUp({ email: $('email').value.trim(), password: $('password').value });
+    const { data, error } = await db.auth.signUp(fields);
     if (error) return setStatus('authStatus', error.message, true);
-    setStatus('authStatus', data.session ? 'تم إنشاء الحساب.' : 'تم إنشاء الحساب. تحقق من بريدك الإلكتروني.');
+    setStatus('authStatus', data.session ? 'تم إنشاء الحساب وتسجيل الدخول.' : 'تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده.');
     if (data.session) await refreshSession();
   });
 
