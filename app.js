@@ -12,7 +12,7 @@
   let activeUseId = null;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   function show(view) {
     $('authView').classList.toggle('hidden', view !== 'auth');
@@ -101,7 +101,13 @@
     const fields = getAuthFields();
     if (!fields) return;
     setStatus('authStatus','جاري إنشاء الحساب...');
-    const { data, error } = await db.auth.signUp(fields);
+    const { data, error } = await db.auth.signUp({
+      email: fields.email,
+      password: fields.password,
+      options: {
+        emailRedirectTo: 'https://filaments-cloud.vercel.app/'
+      }
+    });
     if (error) return setStatus('authStatus', error.message, true);
     setStatus('authStatus', data.session ? 'تم إنشاء الحساب وتسجيل الدخول.' : 'تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده.');
     if (data.session) await refreshSession();
