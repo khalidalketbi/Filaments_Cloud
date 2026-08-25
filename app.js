@@ -74,6 +74,7 @@
         <div class="meta" style="margin-bottom:10px">${Math.round(pct)}% متبقي${Number(s.empty_spool_weight) > 0 ? ` · وزن السبول الفاضي ${Math.round(Number(s.empty_spool_weight))}g` : ''}</div>
         <div class="actions">
           <button class="btn small" data-use="${s.id}">استخدمت فلمنت</button>
+          <button class="btn secondary small" data-duplicate="${s.id}">تكرار</button>
           <button class="btn secondary small" data-edit="${s.id}">تعديل</button>
           <button class="btn secondary small" data-reset="${s.id}">سبول جديد</button>
           <button class="btn danger small" data-delete="${s.id}">حذف</button>
@@ -104,9 +105,7 @@
     const { data, error } = await db.auth.signUp({
       email: fields.email,
       password: fields.password,
-      options: {
-        emailRedirectTo: 'https://filaments-cloud.vercel.app/'
-      }
+      options: { emailRedirectTo: 'https://filaments-cloud.vercel.app/' }
     });
     if (error) return setStatus('authStatus', error.message, true);
     setStatus('authStatus', data.session ? 'تم إنشاء الحساب وتسجيل الدخول.' : 'تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده.');
@@ -154,6 +153,7 @@
 
   $('spoolGrid').addEventListener('click', async e => {
     const use = e.target.closest('[data-use]');
+    const duplicate = e.target.closest('[data-duplicate]');
     const edit = e.target.closest('[data-edit]');
     const reset = e.target.closest('[data-reset]');
     const del = e.target.closest('[data-delete]');
@@ -165,6 +165,24 @@
       $('usedWeight').value = 50;
       setStatus('useStatus', `المتبقي الآن ${Math.round(Number(s.remaining_weight))}g`);
       $('useModal').classList.add('show');
+    }
+
+    if (duplicate) {
+      const s = spools.find(x => x.id === duplicate.dataset.duplicate);
+      if (!s) return;
+      const payload = {
+        name: s.name,
+        brand: s.brand || '',
+        material: s.material,
+        color: s.color || '',
+        total_weight: Number(s.total_weight),
+        remaining_weight: Number(s.total_weight),
+        empty_spool_weight: Number(s.empty_spool_weight || 0),
+        notes: s.notes || ''
+      };
+      const { error } = await db.from('spools').insert(payload);
+      if (error) return alert(error.message);
+      await loadSpools();
     }
 
     if (edit) {
