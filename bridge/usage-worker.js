@@ -124,5 +124,5 @@ async function trackActive(){
 async function tick(){if(busy)return;busy=true;try{if(!(await ensureSession()))return;await prepareJobs();await trackActive();}catch(e){console.error('Usage worker:',e.message||e);}finally{busy=false;}}
 
 console.log('Filament usage worker started');
-setInterval(tick,1200);
-setTimeout(tick,800);
+setInterval(tick,1000);
+setTimeout(tick,500);
