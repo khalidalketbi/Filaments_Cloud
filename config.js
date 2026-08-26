@@ -44,5 +44,6 @@ window.APP_CONFIG = {
     await load('./i18n-master.js');
     await load('./i18n-known-fixes.js');
     await load('./search-fix.js');
+    await load('./fleet-dashboard.js');
   }, { once: true });
 })();
