@@ -12,7 +12,7 @@ window.APP_CONFIG = {
   };
   window.addEventListener('load', () => {
     load('./printer-enhancements.js');
-    load('./assistant-actions.js');
+    load('./assistant-enhancements.js');
     load('./natural-sort.js');
   }, { once: true });
 })();
