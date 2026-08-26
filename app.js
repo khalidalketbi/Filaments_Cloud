@@ -1,8 +1,8 @@
 (() => {
   const cfg = window.APP_CONFIG || {};
   if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY ||
-      cfg.SUPABASE_URL.includes("YOUR_") || cfg.SUPABASE_ANON_KEY.includes("YOUR_")) {
-    document.body.innerHTML = '<div style="max-width:700px;margin:50px auto;padding:20px;font-family:Arial;direction:rtl"><h2>يلزم ربط Supabase</h2><p>افتح <b>config.js</b> وضع SUPABASE_URL و SUPABASE_ANON_KEY ثم ارفع الموقع.</p></div>';
+      cfg.SUPABASE_URL.includes('YOUR_') || cfg.SUPABASE_ANON_KEY.includes('YOUR_')) {
+    document.body.innerHTML = '<div style="max-width:700px;margin:50px auto;padding:20px;font-family:Arial;direction:rtl"><h2>يلزم ربط Supabase</h2><p>افتح <b>config.js</b> وضع بيانات Supabase.</p></div>';
     return;
   }
 
@@ -14,13 +14,38 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  const normalizeName = name => String(name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+
+  function existingNames(excludeId = '') {
+    return new Set(
+      spools
+        .filter(s => String(s.id) !== String(excludeId || ''))
+        .map(s => normalizeName(s.name))
+    );
+  }
+
+  function nextAvailableName(requestedName, excludeId = '') {
+    const clean = String(requestedName || '').trim().replace(/\s+/g, ' ');
+    const names = existingNames(excludeId);
+    if (!names.has(normalizeName(clean))) return clean;
+
+    // إذا الاسم منتهي برقم، نرجع للاسم الأساسي ثم نبحث عن أول رقم متاح.
+    const match = clean.match(/^(.*?)(?:\s+(\d+))?$/);
+    const base = (match?.[1] || clean).trim();
+    let n = 2;
+    while (names.has(normalizeName(`${base} ${n}`))) n++;
+    return `${base} ${n}`;
+  }
+
   function show(view) {
     $('authView').classList.toggle('hidden', view !== 'auth');
     $('appView').classList.toggle('hidden', view !== 'app');
   }
 
   function setStatus(id, msg, isError=false) {
-    const el = $(id); el.textContent = msg || '';
+    const el = $(id);
+    if (!el) return;
+    el.textContent = msg || '';
     el.style.color = isError ? '#fca5a5' : '';
   }
 
@@ -62,6 +87,7 @@
   function render() {
     const filter = $('filterMaterial').value;
     const rows = filter ? spools.filter(s => s.material === filter) : spools;
+
     $('spoolGrid').innerHTML = rows.map(s => {
       const pct = Math.max(0, Math.min(100, (Number(s.remaining_weight) / Number(s.total_weight)) * 100 || 0));
       const cls = pct <= 10 ? 'critical' : pct <= 20 ? 'low' : 'ok';
@@ -112,7 +138,11 @@
     if (data.session) await refreshSession();
   });
 
-  $('logoutBtn').addEventListener('click', async () => { await db.auth.signOut(); spools=[]; show('auth'); });
+  $('logoutBtn').addEventListener('click', async () => {
+    await db.auth.signOut();
+    spools = [];
+    show('auth');
+  });
 
   $('addBtn').addEventListener('click', () => {
     $('spoolForm').reset();
@@ -130,10 +160,23 @@
 
   $('spoolForm').addEventListener('submit', async e => {
     e.preventDefault();
+
+    const id = $('spoolId').value;
+    const requestedName = $('name').value.trim().replace(/\s+/g, ' ');
+    if (!requestedName) return alert('اكتب اسم السبول.');
+
+    const suggestedName = nextAvailableName(requestedName, id);
+    if (normalizeName(suggestedName) !== normalizeName(requestedName)) {
+      $('name').value = suggestedName;
+      alert(`الاسم «${requestedName}» موجود بالفعل.\nالاسم المقترح: «${suggestedName}»\n\nتم وضع الاسم المقترح لك، اضغط حفظ مرة ثانية.`);
+      $('name').focus();
+      return;
+    }
+
     const total = Number($('totalWeight').value);
     const remain = Math.min(total, Math.max(0, Number($('remainingWeight').value)));
     const payload = {
-      name: $('name').value.trim(),
+      name: requestedName,
       material: $('material').value,
       color: $('color').value.trim(),
       total_weight: total,
@@ -142,10 +185,11 @@
       brand: $('brand').value.trim(),
       notes: $('notes').value.trim()
     };
-    const id = $('spoolId').value;
-    let result;
-    if (id) result = await db.from('spools').update(payload).eq('id', id);
-    else result = await db.from('spools').insert(payload);
+
+    const result = id
+      ? await db.from('spools').update(payload).eq('id', id)
+      : await db.from('spools').insert(payload);
+
     if (result.error) return alert(result.error.message);
     $('spoolModal').classList.remove('show');
     await loadSpools();
@@ -161,6 +205,7 @@
     if (use) {
       activeUseId = use.dataset.use;
       const s = spools.find(x => x.id === activeUseId);
+      if (!s) return;
       $('useTitle').textContent = 'تسجيل استخدام — ' + s.name;
       $('usedWeight').value = 50;
       setStatus('useStatus', `المتبقي الآن ${Math.round(Number(s.remaining_weight))}g`);
@@ -170,8 +215,9 @@
     if (duplicate) {
       const s = spools.find(x => x.id === duplicate.dataset.duplicate);
       if (!s) return;
+      const newName = nextAvailableName(s.name);
       const payload = {
-        name: s.name,
+        name: newName,
         brand: s.brand || '',
         material: s.material,
         color: s.color || '',
@@ -187,16 +233,23 @@
 
     if (edit) {
       const s = spools.find(x => x.id === edit.dataset.edit);
-      $('spoolId').value=s.id; $('name').value=s.name; $('material').value=s.material;
-      $('color').value=s.color||''; $('totalWeight').value=s.total_weight;
-      $('remainingWeight').value=s.remaining_weight; $('emptySpoolWeight').value=s.empty_spool_weight||0;
-      $('brand').value=s.brand||''; $('notes').value=s.notes||'';
+      if (!s) return;
+      $('spoolId').value=s.id;
+      $('name').value=s.name;
+      $('material').value=s.material;
+      $('color').value=s.color||'';
+      $('totalWeight').value=s.total_weight;
+      $('remainingWeight').value=s.remaining_weight;
+      $('emptySpoolWeight').value=s.empty_spool_weight||0;
+      $('brand').value=s.brand||'';
+      $('notes').value=s.notes||'';
       $('modalTitle').textContent='تعديل السبول';
       $('spoolModal').classList.add('show');
     }
 
     if (reset) {
       const s = spools.find(x => x.id === reset.dataset.reset);
+      if (!s) return;
       if (!confirm(`تصفير الاستخدام وإرجاع ${s.name} إلى ${s.total_weight}g؟`)) return;
       const { error } = await db.from('spools').update({remaining_weight:s.total_weight}).eq('id', s.id);
       if (error) return alert(error.message);
