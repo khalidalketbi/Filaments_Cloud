@@ -28,17 +28,18 @@
     }
     const now=Number(p.actual_grams_used),total=Number(p.estimated_grams),final=Number(p.last_completed_grams);
     $('usageSpool').textContent=spool?`${spool.name||'Spool'}${spool.material?` · ${spool.material}`:''}`:'—';
-    const remaining=spool?Number(spool.remaining_weight):NaN;
-    $('usageSpoolRemaining').textContent=Number.isFinite(remaining)?`${remaining.toFixed(1)} g`:'—';
+    const storedRemaining=spool?Number(spool.remaining_weight):NaN;
+    const liveRemaining=Number.isFinite(storedRemaining)?Math.max(0,storedRemaining-(Number.isFinite(now)?now:0)):NaN;
+    $('usageSpoolRemaining').textContent=Number.isFinite(liveRemaining)?`${liveRemaining.toFixed(1)} g`:'—';
     $('usageNow').textContent=Number.isFinite(now)?`${now.toFixed(1)} g`:'—';
     $('usageTotal').textContent=Number.isFinite(total)&&total>0?`${total.toFixed(1)} g`:'—';
-    const after=(Number.isFinite(remaining)&&Number.isFinite(total)&&total>0)?Math.max(0,remaining-Math.max(0,total-(Number.isFinite(now)?now:0))):NaN;
+    const after=(Number.isFinite(storedRemaining)&&Number.isFinite(total)&&total>0)?Math.max(0,storedRemaining-total):NaN;
     $('usageAfter').textContent=Number.isFinite(after)?`${after.toFixed(1)} g`:'—';
     const f=$('usageFinal');
     if(p.usage_committed&&Number.isFinite(final)){
       f.style.display='block';f.textContent=`✓ الاستهلاك النهائي المحسوب: ${final.toFixed(1)} g · حتى Layer ${p.layer_num||0}/${p.total_layers||'—'}`;
     }else f.style.display='none';
   }
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-bambu-remote]');if(!b)return;printerId=b.dataset.bambuRemote;setTimeout(()=>{ensure();refresh();clearInterval(timer);timer=setInterval(refresh,1200);},150);},true);
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-bambu-remote]');if(!b)return;printerId=b.dataset.bambuRemote;setTimeout(()=>{ensure();refresh();clearInterval(timer);timer=setInterval(refresh,1000);},150);},true);
   document.addEventListener('click',e=>{if(e.target.closest('#closeBambuRemote')){clearInterval(timer);timer=null;printerId=null;}},true);
 })();
