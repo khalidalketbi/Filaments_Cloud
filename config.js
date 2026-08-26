@@ -14,7 +14,6 @@ window.APP_CONFIG = {
   });
   window.addEventListener('load', async () => {
     await load('./dashboard-pro.js');
-    await load('./printer-enhancements.js');
     await load('./bambu-remote.js');
     await load('./bambu-camera-smooth.js');
     await load('./bambu-safari-pairing.js');
@@ -45,7 +44,6 @@ window.APP_CONFIG = {
     await load('./i18n-known-fixes.js');
     await load('./search-fix.js');
     await load('./fleet-dashboard.js');
-    await load('./remove-manual-printer-time.js');
     await load('./printer-card-remote-time.js');
   }, { once: true });
 })();
