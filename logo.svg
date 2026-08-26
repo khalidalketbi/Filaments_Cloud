@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Filaments Manger logo">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="0.35" stop-color="#6366f1"/>
+      <stop offset="0.68" stop-color="#d946ef"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dbeafe"/>
+      <stop offset="0.25" stop-color="#64748b"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#07111f"/>
+  <ellipse cx="64" cy="28" rx="39" ry="15" fill="url(#rim)" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="25" y="28" width="78" height="69" rx="12" fill="#111827"/>
+  <g fill="none" stroke="url(#g)" stroke-width="5.5" stroke-linecap="round">
+    <path d="M31 38h66"/><path d="M29 48h70"/><path d="M28 58h72"/><path d="M28 68h72"/><path d="M29 78h70"/><path d="M31 88h66"/>
+  </g>
+  <ellipse cx="64" cy="97" rx="39" ry="15" fill="url(#rim)" stroke="#94a3b8" stroke-width="2"/>
+  <ellipse cx="64" cy="97" rx="12" ry="6" fill="#07111f" stroke="#cbd5e1" stroke-width="2"/>
+  <path d="M96 86c15 3 20 10 18 19-2 8-11 11-23 9" fill="none" stroke="url(#g)" stroke-width="5" stroke-linecap="round"/>
+</svg>
