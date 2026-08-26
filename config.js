@@ -4,8 +4,12 @@ window.APP_CONFIG = {
 };
 
 (() => {
-  const s = document.createElement('script');
-  s.src = './ai-chat.js';
-  s.defer = true;
-  document.head.appendChild(s);
+  const load = src => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.defer = true;
+    document.head.appendChild(s);
+  };
+  load('./ai-chat.js');
+  window.addEventListener('load', () => load('./printer-enhancements.js'), { once: true });
 })();
