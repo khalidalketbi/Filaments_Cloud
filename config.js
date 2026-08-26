@@ -4,17 +4,20 @@ window.APP_CONFIG = {
 };
 
 (() => {
-  const load = src => {
+  const load = src => new Promise(resolve => {
     const s = document.createElement('script');
     s.src = src;
     s.defer = true;
+    s.onload = resolve;
+    s.onerror = resolve;
     document.head.appendChild(s);
-  };
-  window.addEventListener('load', () => {
-    load('./printer-enhancements.js');
-    load('./assistant-enhancements.js');
-    load('./natural-sort.js');
-    load('./scroll-memory.js');
-    load('./notifications.js');
+  });
+  window.addEventListener('load', async () => {
+    await load('./dashboard-pro.js');
+    await load('./printer-enhancements.js');
+    await load('./assistant-enhancements.js');
+    await load('./natural-sort.js');
+    await load('./scroll-memory.js');
+    await load('./notifications.js');
   }, { once: true });
 })();
