@@ -23,8 +23,7 @@ window.APP_CONFIG = {
     await load('./experience-fixes.js');
     await load('./spool-form-ux.js');
     await load('./color-filter-refresh.js');
-    await load('./i18n-full.js');
     await load('./auth-enhancements.js');
-    await load('./i18n-runtime-fix.js');
+    await load('./i18n-master.js');
   }, { once: true });
 })();
