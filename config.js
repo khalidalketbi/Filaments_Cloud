@@ -26,6 +26,7 @@ window.APP_CONFIG = {
     await load('./auth-enhancements.js');
     await load('./admin-entry.js');
     await load('./presence.js');
+    await load('./analytics-tracking.js');
     await load('./backup-import.js');
     await load('./cloud-backup-feedback.js');
     await load('./feedback-complaint-fix.js');
