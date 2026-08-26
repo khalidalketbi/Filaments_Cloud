@@ -20,5 +20,6 @@ window.APP_CONFIG = {
     await load('./scroll-memory.js');
     await load('./notifications.js');
     await load('./experience-plus.js');
+    await load('./experience-fixes.js');
   }, { once: true });
 })();
