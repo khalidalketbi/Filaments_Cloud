@@ -19,5 +19,6 @@ window.APP_CONFIG = {
     await load('./natural-sort.js');
     await load('./scroll-memory.js');
     await load('./notifications.js');
+    await load('./experience-plus.js');
   }, { once: true });
 })();
