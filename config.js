@@ -46,5 +46,6 @@ window.APP_CONFIG = {
     await load('./search-fix.js');
     await load('./fleet-dashboard.js');
     await load('./remove-manual-printer-time.js');
+    await load('./printer-card-remote-time.js');
   }, { once: true });
 })();
