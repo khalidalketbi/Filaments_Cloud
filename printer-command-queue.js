@@ -27,22 +27,22 @@
     const modal=$('bambuRemoteModal');if(!modal||$('commandQueuePanel'))return;
     const dialog=modal.querySelector('.dialog');if(!dialog)return;
     const panel=document.createElement('div');panel.id='commandQueuePanel';panel.className='remote-card';panel.style.marginTop='12px';
-    panel.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="flex:1;min-width:150px">📋 قائمة التنفيذ</b><span class="muted" style="font-size:11px">آخر قيمة من نفس النوع هي المعتمدة</span><button id="cancelQueuedCommands" class="btn danger small" type="button">إلغاء كل المنتظر</button><button id="clearCommandHistory" class="btn secondary small" type="button">مسح المنتهي</button></div><div id="commandQueueList" style="display:grid;gap:7px;margin-top:10px"><span class="muted">لا توجد أوامر.</span></div>`;
+    panel.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="flex:1;min-width:150px">📋 قائمة التنفيذ</b><span class="muted" style="font-size:11px">آخر أمر هو المعتمد · شاشة الطابعة لها الأولوية</span><button id="cancelQueuedCommands" class="btn danger small" type="button">إلغاء الكل</button><button id="clearCommandHistory" class="btn secondary small" type="button">مسح المنتهي</button></div><div id="commandQueueList" style="display:grid;gap:7px;margin-top:10px"><span class="muted">لا توجد أوامر.</span></div>`;
     const actions=dialog.querySelector('.dialog-actions');dialog.insertBefore(panel,actions||null);
     $('clearCommandHistory').onclick=clearHistory;
-    $('cancelQueuedCommands').onclick=cancelAllQueued;
+    $('cancelQueuedCommands').onclick=cancelAllActive;
   }
   async function clearHistory(){if(!printerId)return;await db.from('printer_commands').delete().eq('printer_id',printerId).in('status',['done','failed','superseded','cancelled']);await refresh();}
   async function cancelCommand(id){
     if(!printerId||!id)return;
-    const {error}=await db.from('printer_commands').update({status:'cancelled',error:'Cancelled by user',completed_at:new Date().toISOString()}).eq('id',id).eq('printer_id',printerId).eq('status','queued');
+    const {error}=await db.from('printer_commands').update({status:'cancelled',error:'Cancelled by user',completed_at:new Date().toISOString()}).eq('id',id).eq('printer_id',printerId).in('status',['queued','sent']);
     if(error)alert(error.message);
     await refresh();
   }
-  async function cancelAllQueued(){
+  async function cancelAllActive(){
     if(!printerId)return;
-    if(!confirm('إلغاء كل الأوامر التي ما زالت بانتظار التنفيذ؟'))return;
-    const {error}=await db.from('printer_commands').update({status:'cancelled',error:'Cancelled by user',completed_at:new Date().toISOString()}).eq('printer_id',printerId).eq('status','queued');
+    if(!confirm('إلغاء كل الأوامر المنتظرة والجارية؟'))return;
+    const {error}=await db.from('printer_commands').update({status:'cancelled',error:'Cancelled by user',completed_at:new Date().toISOString()}).eq('printer_id',printerId).in('status',['queued','sent']);
     if(error)alert(error.message);
     await refresh();
   }
@@ -54,7 +54,7 @@
     out.innerHTML=data.map(c=>{
       const st=statusLabel[c.status]||c.status,val=valueOf(c),time=new Date(c.created_at).toLocaleTimeString('ar-AE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
       const tone=c.status==='done'?'var(--accent2)':c.status==='failed'?'var(--danger)':c.status==='cancelled'||c.status==='superseded'?'var(--muted)':c.status==='sent'?'var(--warn)':'var(--accent)';
-      const cancel=c.status==='queued'?`<button class="btn danger small" type="button" data-cancel-command="${c.id}">إلغاء</button>`:'';
+      const cancel=['queued','sent'].includes(c.status)?`<button class="btn danger small" type="button" data-cancel-command="${c.id}">إلغاء</button>`:'';
       return `<div style="display:grid;grid-template-columns:minmax(110px,1fr) minmax(90px,.9fr) auto auto;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px"><div><b>${esc(labels[c.command]||c.command)}</b>${val?`<div class="muted" style="font-size:11px">${esc(val)}</div>`:''}</div><div style="font-size:11px;color:${tone}">${esc(st)}${c.error&&c.status==='failed'?`<div>${esc(c.error)}</div>`:''}</div><div class="muted" style="font-size:10px">${time}</div><div>${cancel}</div></div>`;
     }).join('');
     out.querySelectorAll('[data-cancel-command]').forEach(b=>b.onclick=()=>cancelCommand(b.dataset.cancelCommand));
