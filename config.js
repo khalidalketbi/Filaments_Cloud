@@ -27,5 +27,6 @@ window.APP_CONFIG = {
     await load('./backup-import.js');
     await load('./i18n-master.js');
     await load('./i18n-known-fixes.js');
+    await load('./search-fix.js');
   }, { once: true });
 })();
