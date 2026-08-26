@@ -14,5 +14,6 @@ window.APP_CONFIG = {
     load('./printer-enhancements.js');
     load('./assistant-enhancements.js');
     load('./natural-sort.js');
+    load('./scroll-memory.js');
   }, { once: true });
 })();
