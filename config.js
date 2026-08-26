@@ -15,5 +15,6 @@ window.APP_CONFIG = {
     load('./assistant-enhancements.js');
     load('./natural-sort.js');
     load('./scroll-memory.js');
+    load('./notifications.js');
   }, { once: true });
 })();
