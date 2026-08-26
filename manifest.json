@@ -1,11 +1,15 @@
 {
-  "name": "Filament Cloud",
-  "short_name": "Filament Cloud",
+  "name": "Filaments Manger",
+  "short_name": "Filaments",
+  "description": "Filament inventory and printer manager by Khalid Alketbi",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#080d18",
   "theme_color": "#0b1120",
   "lang": "ar",
-  "dir": "rtl"
+  "dir": "rtl",
+  "icons": [
+    {"src":"/logo.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
 }
