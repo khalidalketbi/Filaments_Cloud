@@ -22,12 +22,22 @@ const clients = new Map();
 let db = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: true } });
 
 function saveConfig(){ fs.writeFileSync(FILE, JSON.stringify(config, null, 2), { mode: 0o600 }); }
-function reply(res,status,body,origin){
+function setCors(req,res,origin){
   if(origin && allowedOrigins.has(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Headers','content-type');
+  res.setHeader('Vary','Origin, Access-Control-Request-Private-Network');
+  res.setHeader('Access-Control-Allow-Headers','content-type, accept');
   res.setHeader('Access-Control-Allow-Methods','POST,OPTIONS,GET');
+  res.setHeader('Access-Control-Max-Age','600');
+  if(req.headers['access-control-request-private-network']==='true') {
+    res.setHeader('Access-Control-Allow-Private-Network','true');
+  }
+}
+function reply(req,res,status,body,origin){
+  setCors(req,res,origin);
   res.setHeader('Content-Type','application/json');
-  res.writeHead(status);res.end(JSON.stringify(body));
+  res.setHeader('Cache-Control','no-store');
+  res.writeHead(status);
+  res.end(status===204 ? '' : JSON.stringify(body));
 }
 async function ensureSession(){
   if(!config.session?.access_token || !config.session?.refresh_token) return false;
@@ -109,23 +119,26 @@ async function pollCommands(){
 
 const server=http.createServer(async(req,res)=>{
   const origin=req.headers.origin||'';
-  if(req.method==='OPTIONS') return reply(res,204,{},origin);
-  if(req.url==='/health'&&req.method==='GET') return reply(res,200,{ok:true,printers:clients.size},origin);
+  if(req.method==='OPTIONS') {
+    if(origin && !allowedOrigins.has(origin)) return reply(req,res,403,{error:'Origin not allowed'},origin);
+    return reply(req,res,204,{},origin);
+  }
+  if(req.url==='/health'&&req.method==='GET') return reply(req,res,200,{ok:true,printers:clients.size},origin);
   if(req.url==='/pair'&&req.method==='POST'){
-    if(origin && !allowedOrigins.has(origin)) return reply(res,403,{error:'Origin not allowed'},origin);
+    if(origin && !allowedOrigins.has(origin)) return reply(req,res,403,{error:'Origin not allowed'},origin);
     let raw='';for await(const chunk of req) raw+=chunk;
     try{
       const b=JSON.parse(raw||'{}');
-      if(!b.printer_id||!b.lan_ip||!b.serial_number||!b.access_code||!b.access_token||!b.refresh_token) return reply(res,400,{error:'Missing pairing data'},origin);
+      if(!b.printer_id||!b.lan_ip||!b.serial_number||!b.access_code||!b.access_token||!b.refresh_token) return reply(req,res,400,{error:'Missing pairing data'},origin);
       config.session={access_token:b.access_token,refresh_token:b.refresh_token};
       config.printers[b.printer_id]={name:b.name||'Bambu',lan_ip:b.lan_ip,serial_number:b.serial_number,access_code:b.access_code};
       saveConfig();
       await ensureSession();
       connectPrinter({id:b.printer_id,...config.printers[b.printer_id]});
-      return reply(res,200,{ok:true},origin);
-    }catch(e){return reply(res,400,{error:e.message},origin);}
+      return reply(req,res,200,{ok:true},origin);
+    }catch(e){return reply(req,res,400,{error:e.message},origin);}
   }
-  reply(res,404,{error:'Not found'},origin);
+  reply(req,res,404,{error:'Not found'},origin);
 });
 
 server.listen(PORT,'127.0.0.1',()=>console.log(`Filaments Bridge listening on http://127.0.0.1:${PORT}`));
