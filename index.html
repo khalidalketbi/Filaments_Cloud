@@ -7,133 +7,105 @@
   <title>Filament Cloud</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <style>
-    :root{
-      --bg:#0b1020;--panel:#121a2b;--card:#182235;--muted:#94a3b8;
-      --text:#f8fafc;--border:#26344b;--accent:#60a5fa;--danger:#ef4444;
-      --ok:#22c55e;--warn:#f59e0b
-    }
+    :root{--bg:#0b1020;--panel:#121a2b;--card:#182235;--muted:#94a3b8;--text:#f8fafc;--border:#26344b;--accent:#60a5fa;--danger:#ef4444;--ok:#22c55e}
     *{box-sizing:border-box}
-    body{margin:0;background:linear-gradient(180deg,#09101d,#0b1020 35%,#0c1220);
-      color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif}
-    button,input,select{font:inherit}
-    button{cursor:pointer}
-    .wrap{max-width:980px;margin:auto;padding:20px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+    body{margin:0;background:linear-gradient(180deg,#09101d,#0b1020 35%,#0c1220);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif}
+    button,input,select{font:inherit}button{cursor:pointer}
+    .wrap{max-width:980px;margin:auto;padding:20px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
     .brand h1{margin:0;font-size:25px}.brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
     .panel{background:rgba(18,26,43,.9);border:1px solid var(--border);border-radius:20px;padding:16px}
-    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-    .stat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:15px;text-align:center}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.stat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:15px;text-align:center}
     .stat strong{display:block;font-size:23px}.stat span{color:var(--muted);font-size:12px}
-    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-    .btn{border:0;border-radius:13px;padding:11px 15px;background:var(--accent);color:#08111f;font-weight:700}
-    .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
-    .btn.danger{background:transparent;color:#fca5a5;border:1px solid #7f1d1d}
-    .btn.small{padding:8px 10px;font-size:13px}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .spool{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:15px}
-    .spool-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-    .spool h3{margin:0 0 5px;font-size:18px}.meta{color:var(--muted);font-size:13px}
+    .tabs{display:flex;gap:8px;margin-bottom:14px}.tab{flex:1;min-height:46px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text);font-weight:700}.tab.active{background:var(--accent);color:#08111f;border-color:transparent}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.btn{border:0;border-radius:13px;padding:11px 15px;background:var(--accent);color:#08111f;font-weight:700}
+    .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}.btn.danger{background:transparent;color:#fca5a5;border:1px solid #7f1d1d}.btn.small{padding:8px 10px;font-size:13px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.spool,.printer{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:15px}
+    .spool-head,.printer-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.spool h3,.printer h3{margin:0 0 5px;font-size:18px}.meta{color:var(--muted);font-size:13px}
     .remain{text-align:left}.remain strong{font-size:22px;display:block}.remain small{color:var(--muted)}
-    .bar{height:9px;background:#0b1220;border-radius:999px;overflow:hidden;margin:13px 0 12px}
-    .bar>div{height:100%;background:linear-gradient(90deg,#60a5fa,#22c55e);border-radius:999px}
-    .actions{display:flex;gap:7px;flex-wrap:wrap}
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:18px}
-    .modal.show{display:flex}
-    .dialog{width:min(560px,100%);background:#111a2b;border:1px solid var(--border);border-radius:22px;padding:18px}
-    .dialog h2{margin-top:0}
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
-    label{display:block;font-size:13px;color:#dbeafe}
-    input,select{width:100%;margin-top:5px;background:#0b1220;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;min-height:44px}
-    .full{grid-column:1/-1}
-    .dialog-actions{display:flex;gap:9px;margin-top:16px}
-    .auth{max-width:430px;margin:70px auto}
-    .auth h1{text-align:center}.auth p{text-align:center;color:var(--muted)}
-    .auth .panel{padding:22px}.auth .btn{width:100%;margin-top:10px}
-    .status{font-size:13px;color:var(--muted);margin-top:10px;min-height:18px}
-    .empty{text-align:center;color:var(--muted);padding:32px 10px}
-    .hidden{display:none!important}
+    .bar{height:9px;background:#0b1220;border-radius:999px;overflow:hidden;margin:13px 0 12px}.bar>div{height:100%;border-radius:999px}
+    .color-dot{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.65);box-shadow:0 0 0 1px rgba(0,0,0,.3);flex:0 0 auto}
+    .color-row{display:flex;align-items:center;gap:9px}.actions{display:flex;gap:7px;flex-wrap:wrap}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:18px;z-index:10}.modal.show{display:flex}
+    .dialog{width:min(600px,100%);max-height:92vh;overflow:auto;background:#111a2b;border:1px solid var(--border);border-radius:22px;padding:18px}.dialog h2{margin-top:0}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}label{display:block;font-size:13px;color:#dbeafe}
+    input,select{width:100%;margin-top:5px;background:#0b1220;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;min-height:44px}.full{grid-column:1/-1}
+    .color-picker-wrap{display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:end}.color-picker-wrap input[type=color]{padding:4px;height:50px}
+    .dialog-actions{display:flex;gap:9px;margin-top:16px}.auth{max-width:430px;margin:70px auto}.auth h1{text-align:center}.auth p{text-align:center;color:var(--muted)}.auth .panel{padding:22px}.auth .btn{width:100%;margin-top:10px}
+    .status{font-size:13px;color:var(--muted);margin-top:10px;min-height:18px}.empty{text-align:center;color:var(--muted);padding:32px 10px}.hidden{display:none!important}
+    .loaded{display:flex;align-items:center;gap:10px;margin-top:12px;padding:12px;border-radius:14px;background:#0d1525;border:1px solid var(--border)}
+    .loaded .grow{flex:1;min-width:0}.warehouse-badge{display:inline-block;margin-top:8px;padding:4px 8px;border-radius:999px;background:#0d1525;border:1px solid var(--border);font-size:12px;color:var(--muted)}
     .low{color:#fbbf24}.critical{color:#fca5a5}.ok{color:#86efac}
     @media(max-width:700px){.grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}.topbar{align-items:flex-start}}
   </style>
 </head>
 <body>
   <div id="authView" class="auth wrap">
-    <h1>Filament Cloud</h1>
-    <p>تتبع كل سبول من أي جهاز</p>
+    <h1>Filament Cloud</h1><p>تتبع كل سبول من أي جهاز</p>
     <div class="panel">
       <label>البريد الإلكتروني<input id="email" type="email" autocomplete="email" placeholder="you@example.com"></label>
       <label style="margin-top:10px">كلمة المرور<input id="password" type="password" autocomplete="current-password" placeholder="••••••••"></label>
-      <button id="loginBtn" class="btn">تسجيل الدخول</button>
-      <button id="signupBtn" class="btn secondary">إنشاء حساب</button>
-      <div id="authStatus" class="status"></div>
+      <button id="loginBtn" class="btn">تسجيل الدخول</button><button id="signupBtn" class="btn secondary">إنشاء حساب</button><div id="authStatus" class="status"></div>
     </div>
   </div>
 
   <main id="appView" class="wrap hidden">
-    <div class="topbar">
-      <div class="brand">
-        <h1>Filament Cloud</h1>
-        <p id="userEmail"></p>
-      </div>
-      <button id="logoutBtn" class="btn secondary small">تسجيل خروج</button>
-    </div>
-
+    <div class="topbar"><div class="brand"><h1>Filament Cloud</h1><p id="userEmail"></p></div><button id="logoutBtn" class="btn secondary small">تسجيل خروج</button></div>
     <section class="stats">
       <div class="stat"><strong id="statCount">0</strong><span>السبولات</span></div>
       <div class="stat"><strong id="statRemaining">0g</strong><span>إجمالي المتبقي</span></div>
       <div class="stat"><strong id="statLow">0</strong><span>أقل من 20%</span></div>
     </section>
+    <div class="tabs"><button id="warehouseTab" class="tab active">المخزن</button><button id="printersTab" class="tab">الطابعات</button></div>
 
-    <section class="panel">
+    <section id="warehouseView" class="panel">
       <div class="toolbar">
         <button id="addBtn" class="btn">+ إضافة سبول</button>
-        <select id="filterMaterial" style="width:auto;min-width:150px;margin:0">
-          <option value="">كل المواد</option>
-          <option>PLA</option><option>PETG</option><option>ASA</option><option>ABS</option>
-          <option>TPU</option><option>PA</option><option>PC</option><option>PPS</option><option>Other</option>
-        </select>
+        <select id="filterMaterial" style="width:auto;min-width:150px;margin:0"><option value="">كل المواد</option><option>PLA</option><option>PETG</option><option>ASA</option><option>ABS</option><option>TPU</option><option>PA</option><option>PC</option><option>PPS</option><option>Other</option></select>
       </div>
-      <div id="spoolGrid" class="grid"></div>
-      <div id="emptyState" class="empty hidden">ما عندك سبولات مسجلة.</div>
-      <div id="appStatus" class="status"></div>
+      <div id="spoolGrid" class="grid"></div><div id="emptyState" class="empty hidden">ما عندك سبولات في المخزن.</div><div id="appStatus" class="status"></div>
+    </section>
+
+    <section id="printersView" class="panel hidden">
+      <div class="toolbar"><button id="addPrinterBtn" class="btn">+ إضافة طابعة</button></div>
+      <div id="printerGrid" class="grid"></div><div id="printerEmpty" class="empty hidden">ما عندك طابعات مسجلة.</div><div id="printerStatus" class="status"></div>
     </section>
   </main>
 
   <div id="spoolModal" class="modal" role="dialog" aria-modal="true">
     <form id="spoolForm" class="dialog">
-      <h2 id="modalTitle">إضافة سبول</h2>
-      <input id="spoolId" type="hidden">
+      <h2 id="modalTitle">إضافة سبول</h2><input id="spoolId" type="hidden">
       <div class="form-grid">
         <label class="full">الاسم / الشركة<input id="name" required maxlength="80" placeholder="Bambu PETG HF"></label>
         <label>المادة<select id="material" required><option>PLA</option><option selected>PETG</option><option>ASA</option><option>ABS</option><option>TPU</option><option>PA</option><option>PC</option><option>PPS</option><option>Other</option></select></label>
-        <label>اللون<input id="color" maxlength="40" placeholder="Black"></label>
+        <label>اسم اللون<input id="color" maxlength="40" placeholder="Black"></label>
+        <div class="full color-picker-wrap">
+          <label>اللون<input id="colorHex" type="color" value="#808080"></label>
+          <label>كود اللون<input id="colorHexText" type="text" value="#808080" maxlength="7" placeholder="#808080"></label>
+        </div>
         <label>وزن الفلمنت عند الشراء (g)<input id="totalWeight" type="number" min="1" max="10000" value="1000" required></label>
         <label>المتبقي الآن (g)<input id="remainingWeight" type="number" min="0" max="10000" value="1000" required></label>
         <label>وزن السبول الفاضي (g)<input id="emptySpoolWeight" type="number" min="0" max="3000" value="0"></label>
         <label>الشركة<input id="brand" maxlength="50" placeholder="Bambu Lab"></label>
         <label class="full">ملاحظات<input id="notes" maxlength="250" placeholder="مثال: يحتاج 255°C"></label>
       </div>
-      <div class="dialog-actions">
-        <button class="btn" type="submit">حفظ</button>
-        <button id="cancelModal" class="btn secondary" type="button">إلغاء</button>
-      </div>
+      <div class="dialog-actions"><button class="btn" type="submit">حفظ</button><button id="cancelModal" class="btn secondary" type="button">إلغاء</button></div>
     </form>
   </div>
 
-  <div id="useModal" class="modal" role="dialog" aria-modal="true">
-    <div class="dialog">
-      <h2 id="useTitle">تسجيل استخدام</h2>
-      <label>كم جرام استخدمت؟<input id="usedWeight" type="number" min="0.1" step="0.1" value="50"></label>
-      <div class="dialog-actions">
-        <button id="applyUseBtn" class="btn">خصم</button>
-        <button id="cancelUseBtn" class="btn secondary">إلغاء</button>
+  <div id="printerModal" class="modal" role="dialog" aria-modal="true">
+    <form id="printerForm" class="dialog">
+      <h2 id="printerModalTitle">إضافة طابعة</h2><input id="printerId" type="hidden">
+      <div class="form-grid">
+        <label class="full">اسم الطابعة<input id="printerName" required maxlength="80" placeholder="A1 Mini 1"></label>
+        <label class="full">الموديل<input id="printerModel" maxlength="80" placeholder="Bambu Lab A1 mini"></label>
+        <label class="full">السبول المركب حاليًا<select id="printerSpool"><option value="">بدون سبول</option></select></label>
+        <label class="full">ملاحظات<input id="printerNotes" maxlength="250"></label>
       </div>
-      <div id="useStatus" class="status"></div>
-    </div>
+      <div class="dialog-actions"><button class="btn" type="submit">حفظ</button><button id="cancelPrinterModal" class="btn secondary" type="button">إلغاء</button></div>
+    </form>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./config.js"></script>
-  <script src="./app.js"></script>
-</body>
-</html>
+  <div id="useModal" class="modal" role="dialog" aria-modal="true"><div class="dialog"><h2 id="useTitle">تسجيل استخدام</h2><label>كم جرام استخدمت؟<input id="usedWeight" type="number" min="0.1" step="0.1" value="50"></label><div class="dialog-actions"><button id="applyUseBtn" class="btn">خصم</button><button id="cancelUseBtn" class="btn secondary">إلغاء</button></div><div id="useStatus" class="status"></div></div></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./config.js"></script><script src="./app.js"></script>
+</body></html>
