@@ -32,18 +32,14 @@
 
     const basicIds=['name','brand','material','color','colorHex','colorHexText','totalWeight','remainingWeight'];
     const advancedIds=['multiColor','emptySpoolWeight','diameter','density','price','locationName','lotNr','articleNumber','purchaseDate','nozzleMin','nozzleMax','bedMin','bedMax','notes','favorite','archived'];
-
-    const labelFor=id=>{
-      const el=$(id); if(!el) return null;
-      if(id==='colorHexText') return el.closest('label');
-      return el.closest('label');
-    };
+    const labelFor=id=>$(id)?.closest('label') || null;
 
     const basic=document.createElement('div');
     basic.className='spool-basic-grid';
     const seen=new Set();
     basicIds.forEach(id=>{
-      const lab=labelFor(id); if(lab && !seen.has(lab)){seen.add(lab);basic.appendChild(lab)}
+      const lab=labelFor(id);
+      if(lab && !seen.has(lab)){ seen.add(lab); basic.appendChild(lab); }
     });
 
     const details=document.createElement('details');
@@ -51,31 +47,31 @@
     details.innerHTML='<summary><span>خيارات متقدمة</span><small class="muted">السعر، الموقع، Lot، SKU، الحرارة والمزيد</small></summary><div class="advanced-grid"></div>';
     const adv=details.querySelector('.advanced-grid');
     advancedIds.forEach(id=>{
-      const lab=labelFor(id); if(lab && !seen.has(lab)){seen.add(lab);adv.appendChild(lab)}
+      const lab=labelFor(id);
+      if(lab && !seen.has(lab)){ seen.add(lab); adv.appendChild(lab); }
     });
 
-    // Any future fields not explicitly classified go to Advanced automatically.
     [...grid.children].forEach(child=>{
-      if(child.tagName==='LABEL' && !seen.has(child)){seen.add(child);adv.appendChild(child)}
+      if(child.tagName==='LABEL' && !seen.has(child)){ seen.add(child); adv.appendChild(child); }
     });
 
-    grid.innerHTML='';
-    grid.appendChild(basic);
-    grid.appendChild(details);
+    grid.replaceChildren(basic,details);
     form.dataset.simpleAdvanced='1';
 
     const modal=$('spoolModal');
     if(modal){
-      const obs=new MutationObserver(()=>{
-        if(modal.classList.contains('show')) details.open=false;
+      let wasOpen=modal.classList.contains('show');
+      const modalObs=new MutationObserver(()=>{
+        const isOpen=modal.classList.contains('show');
+        if(isOpen && !wasOpen) details.open=false;
+        wasOpen=isOpen;
       });
-      obs.observe(modal,{attributes:true,attributeFilter:['class']});
+      modalObs.observe(modal,{attributes:true,attributeFilter:['class']});
     }
   }
 
   function linkActivePrinters(){
-    const target=$('proActivePrinters');
-    const card=target?.closest('.pro-kpi');
+    const card=$('proActivePrinters')?.closest('.pro-kpi');
     if(!card || card.dataset.kpiGo) return;
     card.dataset.kpiGo='printers';
     card.tabIndex=0;
@@ -83,22 +79,21 @@
     card.setAttribute('aria-label','فتح صفحة الطابعات');
     const go=()=>document.querySelector('.nav button[data-page="printers"]')?.click();
     card.addEventListener('click',go);
-    card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});
+    card.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); }
+    });
   }
 
   function translateAdvancedSummary(){
-    const lang=document.documentElement.lang;
     const d=document.querySelector('#spoolForm .spool-advanced');
     if(!d) return;
     const span=d.querySelector('summary span');
     const small=d.querySelector('summary small');
-    if(lang==='en'){
-      if(span) span.textContent='Advanced Options';
-      if(small) small.textContent='Price, location, Lot, SKU, temperatures and more';
-    }else{
-      if(span) span.textContent='خيارات متقدمة';
-      if(small) small.textContent='السعر، الموقع، Lot، SKU، الحرارة والمزيد';
-    }
+    const en=document.documentElement.lang==='en';
+    const title=en?'Advanced Options':'خيارات متقدمة';
+    const sub=en?'Price, location, Lot, SKU, temperatures and more':'السعر، الموقع، Lot، SKU، الحرارة والمزيد';
+    if(span && span.textContent!==title) span.textContent=title;
+    if(small && small.textContent!==sub) small.textContent=sub;
   }
 
   function init(){
@@ -106,8 +101,24 @@
     restructureSpoolForm();
     linkActivePrinters();
     translateAdvancedSummary();
-    const obs=new MutationObserver(()=>{linkActivePrinters();restructureSpoolForm();translateAdvancedSummary();});
+
+    // Watch only until dynamically rendered dashboard/form elements exist.
+    let raf=0;
+    const obs=new MutationObserver(()=>{
+      if(raf) return;
+      raf=requestAnimationFrame(()=>{
+        raf=0;
+        restructureSpoolForm();
+        linkActivePrinters();
+        translateAdvancedSummary();
+        if($('spoolForm')?.dataset.simpleAdvanced==='1' && $('proActivePrinters')?.closest('.pro-kpi')?.dataset.kpiGo){
+          obs.disconnect();
+        }
+      });
+    });
     obs.observe(document.body,{childList:true,subtree:true});
+
+    setTimeout(()=>obs.disconnect(),10000);
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true});
