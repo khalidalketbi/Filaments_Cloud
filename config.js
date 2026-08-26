@@ -10,6 +10,8 @@ window.APP_CONFIG = {
     s.defer = true;
     document.head.appendChild(s);
   };
-  load('./ai-chat.js');
-  window.addEventListener('load', () => load('./printer-enhancements.js'), { once: true });
+  window.addEventListener('load', () => {
+    load('./printer-enhancements.js');
+    load('./assistant-enhancements.js');
+  }, { once: true });
 })();
