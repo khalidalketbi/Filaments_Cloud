@@ -45,5 +45,6 @@ window.APP_CONFIG = {
     await load('./i18n-known-fixes.js');
     await load('./search-fix.js');
     await load('./fleet-dashboard.js');
+    await load('./remove-manual-printer-time.js');
   }, { once: true });
 })();
