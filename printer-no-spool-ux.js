@@ -1,0 +1,39 @@
+(() => {
+  const cfg=window.APP_CONFIG||{};
+  if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
+  const db=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const $=id=>document.getElementById(id);
+  const isEn=()=>document.documentElement.lang==='en';
+  const tr=(ar,en)=>isEn()?en:ar;
+  let bypass=false;
+
+  function ensureStyles(){if($('noSpoolUxStyle'))return;const s=document.createElement('style');s.id='noSpoolUxStyle';s.textContent=`
+    .spool-select-row{display:grid;grid-template-columns:1fr 46px;gap:8px;align-items:end}
+    .spool-required select{border-color:var(--danger)!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 35%,transparent)!important}
+    .spool-required-hint{color:var(--danger);font-size:11px;margin-top:5px;font-weight:700}
+    .nos-modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;padding:16px;z-index:120}
+    .nos-modal.show{display:flex}.nos-card{width:min(500px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow)}
+    .nos-card h3{margin:0 0 8px}.nos-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+    .quick-spool-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.quick-spool-grid .full{grid-column:1/-1}
+    @media(max-width:600px){.quick-spool-grid{grid-template-columns:1fr}.quick-spool-grid .full{grid-column:auto}}
+  `;document.head.appendChild(s)}
+
+  function warningModal(){let m=$('noSpoolWarning');if(m)return m;m=document.createElement('div');m.id='noSpoolWarning';m.className='nos-modal';m.innerHTML=`<div class="nos-card"><h3 id="nosTitle"></h3><div id="nosText" class="muted" style="line-height:1.7"></div><div class="nos-actions"><button id="nosEdit" class="btn secondary" type="button"></button><button id="nosIgnore" class="btn" type="button"></button></div></div>`;document.body.appendChild(m);m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')});return m}
+
+  function quickAddModal(){let m=$('quickSpoolModal');if(m)return m;m=document.createElement('div');m.id='quickSpoolModal';m.className='nos-modal';m.innerHTML=`<div class="nos-card"><div style="display:flex;align-items:center;gap:8px"><h3 id="qspTitle" style="flex:1"></h3><button id="qspClose" class="btn secondary" type="button">×</button></div><form id="qspForm" class="quick-spool-grid"><label>${tr('الاسم','Name')}<input id="qspName" required></label><label>${tr('المادة','Material')}<input id="qspMaterial" placeholder="PETG"></label><label>${tr('الشركة','Brand')}<input id="qspBrand"></label><label>${tr('اللون','Color')}<input id="qspColor"></label><label>${tr('الوزن الإجمالي (g)','Total weight (g)')}<input id="qspTotal" type="number" min="1" value="1000"></label><label>${tr('المتبقي (g)','Remaining (g)')}<input id="qspRemaining" type="number" min="0" value="1000"></label><div class="full nos-actions"><button id="qspCancel" class="btn secondary" type="button">${tr('إلغاء','Cancel')}</button><button class="btn" type="submit">${tr('إضافة واختيار','Add & select')}</button></div><div id="qspStatus" class="full muted"></div></form></div>`;document.body.appendChild(m);$('qspClose').onclick=$('qspCancel').onclick=()=>m.classList.remove('show');$('qspForm').onsubmit=saveQuickSpool;return m}
+
+  function refreshText(){const w=warningModal();$('nosTitle').textContent=tr('تنبيه','Warning');$('nosText').textContent=tr('أنت لم تختر فلمنت لهذه الطابعة. يمكنك تجاهل هذا التنبيه وحفظ الطابعة بدون سبول، وسيعمل الوقت وباقي الخصائص بشكل طبيعي.','You have not selected filament for this printer. You can ignore this warning and save the printer without a spool; the timer and all other features will continue to work normally.');$('nosEdit').textContent=tr('تعديل','Edit');$('nosIgnore').textContent=tr('تجاهل','Ignore');const q=quickAddModal();$('qspTitle').textContent=tr('إضافة سبول جديد','Add new spool')}
+
+  function selectWrap(){const sel=$('printerSpool');if(!sel)return null;let wrap=sel.closest('[data-spool-select-wrap]');if(wrap)return wrap;const label=sel.closest('label');if(!label)return null;wrap=document.createElement('div');wrap.dataset.spoolSelectWrap='1';wrap.className='spool-select-row';const holder=document.createElement('div');label.parentNode.insertBefore(wrap,label);holder.appendChild(label);wrap.appendChild(holder);const plus=document.createElement('button');plus.type='button';plus.className='btn secondary';plus.id='quickAddSpoolFromPrinter';plus.textContent='+';plus.title=tr('إضافة سبول جديد','Add new spool');plus.onclick=()=>{refreshText();quickAddModal().classList.add('show');setTimeout(()=>$('qspName')?.focus(),30)};wrap.appendChild(plus);return wrap}
+
+  function markRequired(on){const sel=$('printerSpool');const wrap=selectWrap();if(!sel||!wrap)return;wrap.classList.toggle('spool-required',!!on);let h=$('spoolRequiredHint');if(on){if(!h){h=document.createElement('div');h.id='spoolRequiredHint';h.className='spool-required-hint';wrap.parentNode.insertBefore(h,wrap.nextSibling)}h.textContent=tr('اختر سبول أو اضغط + لإضافة سبول جديد.','Choose a spool or press + to add a new spool.');setTimeout(()=>sel.focus(),20)}else h?.remove()}
+
+  function showNoSpoolWarning(form){refreshText();const m=warningModal();m.classList.add('show');$('nosEdit').onclick=()=>{m.classList.remove('show');markRequired(true)};$('nosIgnore').onclick=()=>{m.classList.remove('show');markRequired(false);bypass=true;try{form.requestSubmit()}finally{setTimeout(()=>bypass=false,0)}}}
+
+  async function saveQuickSpool(e){e.preventDefault();const st=$('qspStatus');try{st.textContent=tr('جاري الإضافة...','Adding…');const name=$('qspName').value.trim();if(!name)throw new Error(tr('اكتب اسم السبول.','Enter a spool name.'));const total=Math.max(1,Number($('qspTotal').value||1000)),remaining=Math.max(0,Math.min(total,Number($('qspRemaining').value||total)));const {data,error}=await db.from('spools').insert({name,material:$('qspMaterial').value.trim()||null,brand:$('qspBrand').value.trim()||null,color:$('qspColor').value.trim()||null,total_weight:total,remaining_weight:remaining,location:'printer'}).select('id,name,material,remaining_weight').single();if(error)throw error;const sel=$('printerSpool');if(sel){const opt=document.createElement('option');opt.value=data.id;opt.textContent=`${data.name} — ${data.material||''} — ${Math.round(Number(data.remaining_weight||0)).toLocaleString()}g`;sel.appendChild(opt);sel.value=data.id;sel.dispatchEvent(new Event('change',{bubbles:true}));markRequired(false)}$('quickSpoolModal').classList.remove('show');$('qspForm').reset();$('qspTotal').value='1000';$('qspRemaining').value='1000';st.textContent=''}catch(err){st.textContent=err.message||String(err)}}
+
+  function interceptSubmit(e){const form=e.target;if(!form||form.id!=='printerForm'||bypass)return;const sel=$('printerSpool');if(sel&&sel.value){markRequired(false);return}e.preventDefault();e.stopImmediatePropagation();showNoSpoolWarning(form)}
+
+  function init(){ensureStyles();refreshText();selectWrap();document.addEventListener('submit',interceptSubmit,true);const modal=$('printerModal');if(modal)new MutationObserver(()=>{if(modal.classList.contains('show'))setTimeout(()=>{selectWrap();refreshText();markRequired(false)},40)}).observe(modal,{attributes:true,attributeFilter:['class']});document.addEventListener('change',e=>{if(e.target?.id==='printerSpool'&&e.target.value)markRequired(false)});}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
