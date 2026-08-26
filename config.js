@@ -20,6 +20,7 @@ window.APP_CONFIG = {
     await load('./bambu-safari-pairing.js');
     await load('./bambu-control-center.js');
     await load('./bambu-quick-temp.js');
+    await load('./print-usage-live.js');
     await load('./printer-command-queue.js');
     await load('./mounted-spool-availability.js');
     await load('./printer-no-spool-ux.js');
