@@ -16,6 +16,7 @@ window.APP_CONFIG = {
     await load('./dashboard-pro.js');
     await load('./printer-enhancements.js');
     await load('./mounted-spool-availability.js');
+    await load('./printer-no-spool-ux.js');
     await load('./assistant-enhancements.js');
     await load('./natural-sort.js');
     await load('./scroll-memory.js');
