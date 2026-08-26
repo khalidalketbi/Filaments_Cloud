@@ -30,6 +30,7 @@ window.APP_CONFIG = {
     await load('./cloud-backup-feedback.js');
     await load('./feedback-complaint-fix.js');
     await load('./ticket-system.js');
+    await load('./floating-support.js');
     await load('./i18n-master.js');
     await load('./i18n-known-fixes.js');
     await load('./search-fix.js');
