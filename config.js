@@ -24,7 +24,11 @@ window.APP_CONFIG = {
     await load('./spool-form-ux.js');
     await load('./color-filter-refresh.js');
     await load('./auth-enhancements.js');
+    await load('./admin-entry.js');
+    await load('./presence.js');
     await load('./backup-import.js');
+    await load('./cloud-backup-feedback.js');
+    await load('./feedback-complaint-fix.js');
     await load('./i18n-master.js');
     await load('./i18n-known-fixes.js');
     await load('./search-fix.js');
