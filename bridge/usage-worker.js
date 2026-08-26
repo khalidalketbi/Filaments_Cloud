@@ -49,7 +49,7 @@ function parseLayerUsage(text,totalGrams){
     if(!/^G0?1\b/i.test(line))continue;
     const em=line.match(/\bE(-?[0-9.]+)/i);if(!em)continue;
     const e=Number(em[1]);if(!Number.isFinite(e))continue;
-    let delta=relative?e:e-lastE;
+    const delta=relative?e:e-lastE;
     if(!relative)lastE=e;
     if(delta>0&&delta<1000)totalPositiveE+=delta;
   }
@@ -74,17 +74,16 @@ async function undoLegacyFullDeduction(printerId,spoolId,fileName,commandCreated
   if(!legacy)return;
   const grams=Number(legacy.grams_used)||0;if(grams<=0)return;
   const {data:s}=await db.from('spools').select('remaining_weight').eq('id',spoolId).maybeSingle();
-  if(s){await db.from('spools').update({remaining_weight:Number(s.remaining_weight||0)+grams}).eq('id',spoolId);}
+  if(s)await db.from('spools').update({remaining_weight:Number(s.remaining_weight||0)+grams}).eq('id',spoolId);
   await db.from('usage_logs').delete().eq('id',legacy.id);
   console.log(`Usage: reversed legacy upfront deduction ${grams.toFixed(2)}g`);
 }
 async function prepareJobs(){
-  const {data:cmds,error}=await db.from('printer_commands').select('id,printer_id,payload,status,created_at,completed_at').eq('command','upload_print').eq('status','done').order('created_at',{ascending:false}).limit(20);
+  const {data:cmds,error}=await db.from('printer_commands').select('id,printer_id,payload,status,created_at,completed_at,usage_prepared').eq('command','upload_print').eq('status','done').eq('usage_prepared',false).order('created_at',{ascending:true}).limit(20);
   if(error)return;
   for(const cmd of cmds||[]){
-    const fileId=cmd.payload?.file_id,spoolId=cmd.payload?.spool_id||null;if(!fileId)continue;
+    const fileId=cmd.payload?.file_id,spoolId=cmd.payload?.spool_id||null;if(!fileId){await db.from('printer_commands').update({usage_prepared:true}).eq('id',cmd.id);continue;}
     const {data:p}=await db.from('printers').select('id,active_print_file_id,usage_committed,current_file').eq('id',cmd.printer_id).maybeSingle();if(!p)continue;
-    if(p.active_print_file_id===fileId&&!p.usage_committed)continue;
     const {data:f}=await db.from('print_files').select('*').eq('id',fileId).maybeSingle();if(!f)continue;
     let total=Number(f.estimated_grams)||null,usage=f.layer_usage||[],layers=f.parsed_total_layers||null;
     if(!usage.length||!total){
@@ -96,6 +95,7 @@ async function prepareJobs(){
     }
     await undoLegacyFullDeduction(cmd.printer_id,spoolId,f.name,cmd.created_at);
     await db.from('printers').update({active_print_file_id:fileId,active_print_spool_id:spoolId,estimated_grams:total,actual_grams_used:0,usage_committed:false,usage_tracking_started:false,last_completed_grams:null}).eq('id',cmd.printer_id);
+    await db.from('printer_commands').update({usage_prepared:true}).eq('id',cmd.id);
   }
 }
 async function commitUsage(p,f,actual){
