@@ -1,13 +1,13 @@
 self.addEventListener('push', event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) {}
-  const title = data.title || 'Filament Cloud';
+  const title = data.title || 'Filaments Manger';
   const options = {
     body: data.body || '',
-    tag: data.tag || 'filament-cloud',
+    tag: data.tag || 'filaments-manger',
     data: { url: data.url || '/?page=printers' },
-    badge: undefined,
-    icon: undefined
+    icon: '/logo.svg',
+    badge: '/logo.svg'
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
