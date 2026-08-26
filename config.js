@@ -22,5 +22,6 @@ window.APP_CONFIG = {
     await load('./experience-plus.js');
     await load('./experience-fixes.js');
     await load('./spool-form-ux.js');
+    await load('./color-filter-refresh.js');
   }, { once: true });
 })();
