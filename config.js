@@ -24,5 +24,6 @@ window.APP_CONFIG = {
     await load('./spool-form-ux.js');
     await load('./color-filter-refresh.js');
     await load('./i18n-full.js');
+    await load('./auth-enhancements.js');
   }, { once: true });
 })();
