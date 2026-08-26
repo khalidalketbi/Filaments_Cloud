@@ -35,7 +35,8 @@
     .loaded{display:flex;align-items:center;gap:10px;margin-top:12px;padding:12px;border-radius:14px;background:#0d1525;border:1px solid var(--border)}
     .loaded .grow{flex:1;min-width:0}.warehouse-badge{display:inline-block;margin-top:8px;padding:4px 8px;border-radius:999px;background:#0d1525;border:1px solid var(--border);font-size:12px;color:var(--muted)}
     .low{color:#fbbf24}.critical{color:#fca5a5}.ok{color:#86efac}
-    @media(max-width:700px){.grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}.topbar{align-items:flex-start}}
+    .weight-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.weight-metric{background:#0d1525;border:1px solid var(--border);border-radius:14px;padding:12px;text-align:center}.weight-metric strong{display:block;font-size:21px}.weight-metric span{display:block;color:var(--muted);font-size:12px;margin-top:3px}.weight-preview{height:10px;background:#0b1220;border-radius:999px;overflow:hidden;margin:10px 0}.weight-preview>div{height:100%;background:linear-gradient(90deg,#60a5fa,#22c55e);border-radius:999px;transition:width .2s ease}
+    @media(max-width:700px){.grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}.topbar{align-items:flex-start}.weight-metrics{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -107,5 +108,22 @@
 
   <div id="useModal" class="modal" role="dialog" aria-modal="true"><div class="dialog"><h2 id="useTitle">تسجيل استخدام</h2><label>كم جرام استخدمت؟<input id="usedWeight" type="number" min="0.1" step="0.1" value="50"></label><div class="dialog-actions"><button id="applyUseBtn" class="btn">خصم</button><button id="cancelUseBtn" class="btn secondary">إلغاء</button></div><div id="useStatus" class="status"></div></div></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./config.js"></script><script src="./app.js"></script>
+  <div id="printerWeightModal" class="modal" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <h2 id="printerWeightTitle">استهلاك الفلمنت</h2>
+      <div id="printerWeightSpool" class="meta" style="margin-bottom:12px"></div>
+      <label>جرامات الطبعة الحالية<input id="printerPrintGrams" type="number" min="0.1" step="0.1" inputmode="decimal" placeholder="مثال: 200"></label>
+      <div class="weight-metrics">
+        <div class="weight-metric"><strong id="weightNow">0g</strong><span>الموجود الآن</span></div>
+        <div class="weight-metric"><strong id="weightPrint">0g</strong><span>استهلاك الطبعة</span></div>
+        <div class="weight-metric"><strong id="weightAfter">0g</strong><span>الباقي بعد الطبعة</span></div>
+      </div>
+      <div class="weight-preview"><div id="weightPreviewBar" style="width:0%"></div></div>
+      <div id="weightAfterPct" class="meta"></div>
+      <div id="printerWeightStatus" class="status"></div>
+      <div class="dialog-actions"><button id="applyPrinterWeight" class="btn" type="button">تحديث الوزن</button><button id="cancelPrinterWeight" class="btn secondary" type="button">إلغاء</button></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./config.js"></script><script src="./app.js"></script><script src="./printer-weight.js"></script>
 </body></html>
