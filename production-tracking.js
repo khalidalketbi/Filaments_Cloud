@@ -31,6 +31,7 @@
 
         <div class="panel prod-printers-panel">
           <div class="section-title"><h2>الطابعات الآن</h2><span id="prodPrinterSummary" class="muted"></span></div>
+          <div id="prodReminderBanner" class="prod-reminder-banner hidden"></div>
           <div id="prodPrinterGrid" class="prod-printer-grid"></div>
         </div>
 
@@ -61,7 +62,9 @@
       #productionPage .printer-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
       #productionPage .printer-actions .finish{background:var(--accent2)}
       #productionPage .printer-warning{margin-top:8px;color:var(--warn);font-size:11px;font-weight:700}
-      #productionPage .printer-timer{font-size:11px;color:var(--muted);margin-top:7px;min-height:16px}
+      #productionPage .printer-timer{font-size:18px;font-weight:900;color:var(--accent2);margin-top:9px;min-height:24px;font-variant-numeric:tabular-nums}
+      #productionPage .prod-reminder-banner{margin:0 0 12px;padding:12px 14px;border-radius:12px;border:1px solid var(--warn);background:color-mix(in srgb,var(--warn) 12%,var(--card));font-weight:800}
+      #productionPage .prod-reminder-banner.hidden{display:none}
       @media(max-width:1100px){#productionPage .prod-printer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
       @media(max-width:700px){#productionPage .prod-printer-grid{grid-template-columns:1fr}}
     `;document.head.appendChild(style);
@@ -104,9 +107,25 @@
 
   function statusLabel(v){return v==='printing'?'يطبع الآن':v==='paused'?'متوقف مؤقتًا':v==='done'?'منتهية':'جاهزة';}
   function formatRemaining(ms){
-    if(ms<=0) return 'انتهى الوقت المتوقع';
-    const min=Math.ceil(ms/60000), h=Math.floor(min/60), m=min%60;
-    return h?`${h}س ${m}د متبقي`:`${m}د متبقي`;
+    if(ms<=0) return '00:00:00 — انتهى الوقت المتوقع';
+    const total=Math.max(0,Math.ceil(ms/1000));
+    const h=Math.floor(total/3600), m=Math.floor((total%3600)/60), s=total%60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function showReminder(a,pl){
+    const banner=document.getElementById('prodReminderBanner');
+    const msg=`⏰ ${a.printer_name}: باقي 10 دقائق تقريبًا على انتهاء Plate ${a.plate_no}`;
+    if(banner){banner.textContent=msg;banner.classList.remove('hidden');}
+    if('Notification' in window && Notification.permission==='granted'){
+      try{new Notification('Filaments Manager',{body:msg,tag:`production-${a.id}-${a.started_at}`});}catch(_){ }
+    }
+    if(navigator.vibrate) try{navigator.vibrate([200,100,200]);}catch(_){ }
+  }
+
+  async function requestNotificationPermission(){
+    if(!('Notification' in window) || Notification.permission!=='default') return;
+    try{await Notification.requestPermission();}catch(_){ }
   }
 
   function renderPrinters(){
@@ -123,7 +142,7 @@
       return `<article class="prod-printer-card ${esc(a.status)}" data-id="${a.id}" data-started="${started||''}" data-duration="${pl?.print_minutes?n(pl.print_minutes)*60000:''}">
         <div class="prod-top"><div class="prod-num">${esc(a.printer_name)}</div><span class="printer-state"><i></i>${statusLabel(a.status)}</span></div>
         <div class="printer-main-stat"><div><span class="muted">الفلمنت المتبقي</span><br><strong>${n(a.remaining_g).toFixed(0)}g</strong></div><div style="text-align:left"><span class="muted">تطبع</span><div class="printer-current">${a.plate_no?`Plate ${a.plate_no}`:'—'}</div></div></div>
-        <div class="printer-timer">${a.status==='printing'&&finish?formatRemaining(finish-Date.now()):(a.status==='printing'?'الوقت غير مسجل لهذا Plate':'')}</div>
+        <div class="printer-timer">${a.status==='printing'&&finish?formatRemaining(finish-Date.now()):(a.status==='printing'?'اضغط حفظ لبدء العداد':'')}</div>
         ${!enough?`<div class="printer-warning">⚠ المتبقي لا يكفي لطباعة Plate ${a.plate_no} (${n(pl.weight_g)}g)</div>`:''}
         <div class="prod-controls">
           <label>اسم الطابعة<input class="printer-name" value="${esc(a.printer_name)}" maxlength="40"></label>
@@ -153,7 +172,13 @@
       const pl=plateByNo(a.plate_no), el=card.querySelector('.printer-timer');
       if(!el||!a.started_at||!pl?.print_minutes) return;
       const finish=new Date(a.started_at).getTime()+n(pl.print_minutes)*60000;
-      el.textContent=formatRemaining(finish-Date.now());
+      const left=finish-Date.now();
+      el.textContent=formatRemaining(left);
+      if(left>0 && left<=10*60*1000 && !a.reminder_10m_sent){
+        a.reminder_10m_sent=true;
+        showReminder(a,pl);
+        db.from('production_assignments').update({reminder_10m_sent:true,updated_at:new Date().toISOString()}).eq('id',a.id).then(()=>{});
+      }
     });
   }
 
@@ -196,21 +221,24 @@
     const card=e.currentTarget.closest('.prod-printer-card'), id=card.dataset.id;
     const old=assignments.find(x=>x.id===id), status=card.querySelector('.printer-status').value;
     const plateRaw=card.querySelector('.plate-no').value;
+    const newPlate=plateRaw?parseInt(plateRaw,10):null;
+    const starting=status==='printing' && (!old.started_at || old.status!=='printing' || n(old.plate_no)!==n(newPlate));
+    if(starting) await requestNotificationPermission();
     const update={
       printer_name:card.querySelector('.printer-name').value.trim()||old.printer_name,
       spool_name:card.querySelector('.spool-name').value.trim()||null,
       remaining_g:Math.max(0,n(card.querySelector('.remaining-g').value)),
-      plate_no:plateRaw?parseInt(plateRaw,10):null,
+      plate_no:newPlate,
       status,
       notes:card.querySelector('.printer-notes').value.trim()||null,
       updated_at:new Date().toISOString()
     };
-    if(status==='printing' && (!old.started_at || old.status!=='printing')) update.started_at=new Date().toISOString();
-    if(status==='idle') update.started_at=null;
+    if(starting){update.started_at=new Date().toISOString();update.reminder_10m_sent=false;}
+    if(status==='idle'){update.started_at=null;update.reminder_10m_sent=false;}
     const st=document.getElementById('prodStatus'); st.textContent='جاري حفظ الطابعة…';
     const r=await db.from('production_assignments').update(update).eq('id',id).select();
     if(r.error){st.textContent='تعذر الحفظ: '+r.error.message;return;}
-    st.textContent='تم حفظ الطابعة'; await load();
+    st.textContent=starting?'بدأ العداد التنازلي للطباعة':'تم حفظ الطابعة'; await load();
   }
 
   async function finishPrint(e){
@@ -230,6 +258,6 @@
     try{await ensureProject(session.user); render(); st.textContent='';}catch(err){st.textContent='خطأ: '+(err?.message||err);}
   }
 
-  function boot(){injectUI();clearInterval(timer);timer=setInterval(updateTimers,30000);}
+  function boot(){injectUI();clearInterval(timer);timer=setInterval(updateTimers,1000);}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
