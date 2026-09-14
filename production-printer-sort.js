@@ -2,6 +2,8 @@
   const STORAGE_KEY = 'productionPrinterSortMode';
   const DEFAULT_ORDER = ['A1','A2','M1','M2','M3','M4','M5'];
   let applying = false;
+  let observer = null;
+  let ensureTimer = null;
 
   function injectStyle(){
     if(document.getElementById('printerSortStyle')) return;
@@ -43,42 +45,55 @@
     return an.localeCompare(bn,undefined,{numeric:true,sensitivity:'base'});
   }
 
+  function compareForMode(mode,a,b){
+    if(mode==='filament-asc') return getFilament(a)-getFilament(b) || compareDefault(a,b);
+    if(mode==='filament-desc') return getFilament(b)-getFilament(a) || compareDefault(a,b);
+    if(mode==='time-asc'){
+      const at=getTimeSeconds(a), bt=getTimeSeconds(b);
+      if(at==null && bt==null) return compareDefault(a,b);
+      if(at==null) return 1;
+      if(bt==null) return -1;
+      return at-bt || compareDefault(a,b);
+    }
+    if(mode==='time-desc'){
+      const at=getTimeSeconds(a), bt=getTimeSeconds(b);
+      if(at==null && bt==null) return compareDefault(a,b);
+      if(at==null) return 1;
+      if(bt==null) return -1;
+      return bt-at || compareDefault(a,b);
+    }
+    return compareDefault(a,b);
+  }
+
   function applySort(){
     if(applying) return;
     const grid=document.getElementById('prodPrinterGrid');
     const select=document.getElementById('printerSortSelect');
     if(!grid||!select) return;
-    const cards=[...grid.querySelectorAll('.prod-printer-card')];
-    if(cards.length<2) return;
+
+    const current=[...grid.querySelectorAll(':scope > .prod-printer-card')];
+    if(current.length<2) return;
+
     const mode=select.value||'default';
-    cards.sort((a,b)=>{
-      if(mode==='filament-asc') return getFilament(a)-getFilament(b) || compareDefault(a,b);
-      if(mode==='filament-desc') return getFilament(b)-getFilament(a) || compareDefault(a,b);
-      if(mode==='time-asc'){
-        const at=getTimeSeconds(a), bt=getTimeSeconds(b);
-        if(at==null && bt==null) return compareDefault(a,b);
-        if(at==null) return 1;
-        if(bt==null) return -1;
-        return at-bt || compareDefault(a,b);
-      }
-      if(mode==='time-desc'){
-        const at=getTimeSeconds(a), bt=getTimeSeconds(b);
-        if(at==null && bt==null) return compareDefault(a,b);
-        if(at==null) return 1;
-        if(bt==null) return -1;
-        return bt-at || compareDefault(a,b);
-      }
-      return compareDefault(a,b);
-    });
+    const sorted=[...current].sort((a,b)=>compareForMode(mode,a,b));
+    const changed=sorted.some((card,i)=>card!==current[i]);
+    if(!changed) return;
+
     applying=true;
-    cards.forEach(c=>grid.appendChild(c));
-    applying=false;
+    try{
+      const frag=document.createDocumentFragment();
+      sorted.forEach(card=>frag.appendChild(card));
+      grid.appendChild(frag);
+    } finally {
+      applying=false;
+    }
   }
 
   function ensureControls(){
     injectStyle();
     const grid=document.getElementById('prodPrinterGrid');
-    if(!grid) return;
+    if(!grid) return false;
+
     if(!document.getElementById('printerSortSelect')){
       const wrap=document.createElement('div');
       wrap.className='printer-sort-wrap';
@@ -86,15 +101,43 @@
       grid.parentElement?.insertBefore(wrap,grid);
       const select=wrap.querySelector('select');
       select.value=localStorage.getItem(STORAGE_KEY)||'default';
-      select.addEventListener('change',()=>{localStorage.setItem(STORAGE_KEY,select.value);applySort();});
+      select.addEventListener('change',()=>{
+        localStorage.setItem(STORAGE_KEY,select.value);
+        applySort();
+      });
     }
+
     applySort();
+    return true;
+  }
+
+  function attachObserver(){
+    const grid=document.getElementById('prodPrinterGrid');
+    if(!grid || observer) return;
+    let pending=false;
+    observer=new MutationObserver(()=>{
+      if(applying || pending) return;
+      pending=true;
+      requestAnimationFrame(()=>{
+        pending=false;
+        ensureControls();
+      });
+    });
+    observer.observe(grid,{childList:true});
   }
 
   function boot(){
-    ensureControls();
-    const root=document.getElementById('productionPage')||document.body;
-    new MutationObserver(()=>{if(!applying){ensureControls();}}).observe(root,{childList:true,subtree:true});
+    injectStyle();
+    let tries=0;
+    ensureTimer=setInterval(()=>{
+      tries++;
+      if(ensureControls()) attachObserver();
+      if(tries>120 && document.getElementById('prodPrinterGrid')){
+        clearInterval(ensureTimer);
+        ensureTimer=null;
+      }
+    },500);
+
     setInterval(()=>{
       const mode=document.getElementById('printerSortSelect')?.value;
       if(mode==='time-asc'||mode==='time-desc') applySort();
