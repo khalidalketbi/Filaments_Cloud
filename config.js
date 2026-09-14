@@ -57,6 +57,7 @@ window.APP_CONFIG = {
   window.addEventListener('load', async () => {
     await load('./dashboard-pro.js');
     await load('./production-tracking.js');
+    await load('./production-manual-time.js');
     await load('./production-history.js');
     await load('./assistant-enhancements.js');
     await load('./natural-sort.js');
