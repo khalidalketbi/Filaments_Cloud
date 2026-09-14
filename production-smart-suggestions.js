@@ -5,7 +5,6 @@
   const currentKey='fm_current_project_id';
   const n=v=>Number(v)||0;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const DEFAULT_ORDER=['A1','A2','M1','M2','M3','M4','M5'];
 
   function injectStyle(){
     if(document.getElementById('smartSuggestStyle')) return;
@@ -15,14 +14,14 @@
       #productionPage .smart-suggest{margin:0 0 14px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
       #productionPage .smart-suggest-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
       #productionPage .smart-suggest-list{display:grid;gap:8px;margin-top:12px}
-      #productionPage .smart-suggest-row{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:12px;background:var(--card2);border:1px solid var(--line)}
+      #productionPage .smart-suggest-row{display:grid;grid-template-columns:76px 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:12px;background:var(--card2);border:1px solid var(--line)}
       #productionPage .smart-suggest-printer{font-weight:900;font-size:16px}
-      #productionPage .smart-suggest-choice{font-weight:800}
-      #productionPage .smart-suggest-reason{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.55}
-      #productionPage .smart-suggest-fit{font-size:12px;font-weight:800;white-space:nowrap}
+      #productionPage .smart-suggest-choice{font-weight:900;font-size:15px}
+      #productionPage .smart-suggest-reason{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.55}
+      #productionPage .smart-suggest-fit{font-size:12px;font-weight:900;white-space:nowrap}
       #productionPage .smart-suggest-warn{color:var(--warn)}
-      #productionPage .smart-ai-badge{display:inline-block;margin-inline-start:6px;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font-size:10px;font-weight:800}
-      @media(max-width:620px){#productionPage .smart-suggest-row{grid-template-columns:70px 1fr}.smart-suggest-fit{grid-column:2}}
+      #productionPage .smart-suggest-rank{font-size:10px;color:var(--muted);margin-top:3px}
+      @media(max-width:620px){#productionPage .smart-suggest-row{grid-template-columns:58px 1fr}.smart-suggest-fit{grid-column:2}}
     `;
     document.head.appendChild(s);
   }
@@ -33,14 +32,77 @@
     if(!printersPanel || document.getElementById('smartSuggestPanel')) return;
     const panel=document.createElement('div');
     panel.id='smartSuggestPanel'; panel.className='smart-suggest';
-    panel.innerHTML=`<div class="smart-suggest-head"><div><h2 style="margin:0">اقتراح الطباعة الذكي <span class="smart-ai-badge">Smart Optimizer</span></h2><div class="muted" style="font-size:12px">يوازن المشروع كاملًا، يستغل الفلمنت بأفضل شكل، ويراعي الطباعة الحالية ووقت انتهاء كل طابعة</div></div><button id="smartSuggestBtn" class="btn">اقترح شو أطبع</button></div><div id="smartSuggestBody" class="smart-suggest-list"><div class="muted">اضغط الزر للحصول على اقتراح.</div></div>`;
+    panel.innerHTML=`<div class="smart-suggest-head"><div><h2 style="margin:0">اقتراح الطباعة الذكي</h2><div class="muted" style="font-size:12px">يوازن بين إكمال الأطقم واستغلال كل سبول لأقل بقايا ممكنة</div></div><button id="smartSuggestBtn" class="btn">اقترح شو أطبع</button></div><div id="smartSuggestBody" class="smart-suggest-list"><div class="muted">اضغط الزر للحصول على اقتراح.</div></div>`;
     printersPanel.insertAdjacentElement('beforebegin',panel);
     document.getElementById('smartSuggestBtn').addEventListener('click',buildSuggestions);
   }
 
+  function availableAfterCurrent(a,pmap){
+    let g=Math.max(0,n(a.remaining_g));
+    if(a.status==='printing' && a.plate_no){
+      const current=pmap.get(n(a.plate_no));
+      if(current) g=Math.max(0,g-n(current.weight_g));
+    }
+    return g;
+  }
+
+  function secondsUntilFree(a,pmap){
+    if(a.status!=='printing' || !a.plate_no) return 0;
+    if(a.manual_time_override && a.manual_finish_at){
+      return Math.max(0,Math.floor((new Date(a.manual_finish_at).getTime()-Date.now())/1000));
+    }
+    const p=pmap.get(n(a.plate_no));
+    if(!p?.print_minutes || !a.started_at) return Number.POSITIVE_INFINITY;
+    const end=new Date(a.started_at).getTime()+n(p.print_minutes)*60000;
+    return Math.max(0,Math.floor((end-Date.now())/1000));
+  }
+
+  function generateSequences(plates, shortage, capacity){
+    const valid=plates.filter(p=>n(shortage.get(n(p.plate_no)))>0 && n(p.weight_g)>0 && n(p.weight_g)<=capacity);
+    const out=[];
+    const counts=new Map();
+    const seq=[];
+
+    function pushCandidate(used){
+      if(!seq.length) return;
+      const distinct=new Set(seq.map(p=>n(p.plate_no))).size;
+      const urgency=seq.reduce((s,p)=>s+n(shortage.get(n(p.plate_no))),0);
+      const duplicatePenalty=seq.length-distinct;
+      out.push({seq:[...seq],used,left:capacity-used,distinct,urgency,duplicatePenalty});
+    }
+
+    function dfs(start,used,depth){
+      pushCandidate(used);
+      if(depth>=6) return;
+      for(let i=start;i<valid.length;i++){
+        const p=valid[i], no=n(p.plate_no), w=n(p.weight_g);
+        const c=counts.get(no)||0, max=n(shortage.get(no));
+        if(c>=max || used+w>capacity) continue;
+        counts.set(no,c+1); seq.push(p);
+        dfs(i,used+w,depth+1);
+        seq.pop(); counts.set(no,c);
+      }
+    }
+    dfs(0,0,0);
+    return out;
+  }
+
+  function candidateScore(c,capacity){
+    // 1) استغلال السبول مهم جداً، لكن فرق 1-3g لا يطغى على توازن المشروع.
+    const wastePenalty=c.left*4;
+    // 2) أعط أولوية للـPlates الأكثر نقصاً.
+    const urgencyBonus=c.urgency*10;
+    // 3) التنويع أفضل من تكرار نفس Plate إذا الفرق في الهدر بسيط.
+    const diversityBonus=c.distinct*9;
+    const duplicatePenalty=c.duplicatePenalty*7;
+    // 4) كافئ استخدام أغلب السبول.
+    const utilizationBonus=capacity>0?(c.used/capacity)*120:0;
+    return urgencyBonus+diversityBonus+utilizationBonus-wastePenalty-duplicatePenalty;
+  }
+
   async function buildSuggestions(){
     const body=document.getElementById('smartSuggestBody'); if(!body)return;
-    body.innerHTML='<div class="muted">جاري تحسين التوزيع على كل الطابعات…</div>';
+    body.innerHTML='<div class="muted">جاري الحساب الذكي…</div>';
     const projectId=localStorage.getItem(currentKey);
     if(!projectId){body.innerHTML='<div class="smart-suggest-warn">اختر مشروع أولاً.</div>';return;}
 
@@ -60,137 +122,54 @@
       }
     }
 
-    const shortage={};
-    for(const p of plates) shortage[n(p.plate_no)]=Math.max(0,n(p.target_qty)-n(projected.get(n(p.plate_no))));
+    const shortage=new Map();
+    for(const p of plates) shortage.set(n(p.plate_no),Math.max(0,n(p.target_qty)-n(projected.get(n(p.plate_no)))));
 
-    const orderedPrinters=[...printers].sort((a,b)=>{
-      const ta=finishSeconds(a,pmap), tb=finishSeconds(b,pmap);
-      if(ta!==tb) return ta-tb;
-      return defaultIndex(a.printer_name)-defaultIndex(b.printer_name);
+    // نبدأ بأصغر سبول متاح بعد الطبعة الحالية، لأنه الأقل مرونة ويحتاج أفضل fit أولاً.
+    // عند تساوي الجرامات، الطابعة التي تنتهي أولاً تأخذ الأولوية.
+    const order=[...printers].sort((a,b)=>{
+      const ga=availableAfterCurrent(a,pmap), gb=availableAfterCurrent(b,pmap);
+      if(ga!==gb) return ga-gb;
+      return secondsUntilFree(a,pmap)-secondsUntilFree(b,pmap) || String(a.printer_name).localeCompare(String(b.printer_name),undefined,{numeric:true});
     });
 
-    const optimized=optimizeGlobally(orderedPrinters,plates,pmap,shortage);
-    const recs=optimized.map((plate,idx)=>{
-      const printer=orderedPrinters[idx];
+    const recs=[];
+    for(const printer of order){
       const avail=availableAfterCurrent(printer,pmap);
-      if(!plate){
-        const anyNeed=Object.values(shortage).some(q=>q>0);
-        return {printer,plate:null,avail,reason:anyNeed?'لا يوجد Plate ناقص يناسب الفلمنت المتوقع بعد الطبعة الحالية':'المشروع مكتمل حسب الطباعة الحالية'};
+      const candidates=generateSequences(plates,shortage,avail);
+      if(!candidates.length){
+        const stillNeeded=[...shortage.values()].some(q=>q>0);
+        recs.push({printer,seq:[],avail,after:avail,reason:stillNeeded?'لا توجد تركيبة ناقصة تناسب الفلمنت المتبقي':'المشروع مكتمل حسب الطباعة الحالية'});
+        continue;
       }
-      return {
-        printer,plate,avail,after:avail-n(plate.weight_g),
-        needBefore:shortage[n(plate.plate_no)]||0,
-        finish:finishSeconds(printer,pmap)
-      };
-    });
 
-    body.innerHTML=recs.map(r=>{
+      candidates.sort((a,b)=>{
+        const sa=candidateScore(a,avail), sb=candidateScore(b,avail);
+        if(sa!==sb) return sb-sa;
+        if(a.left!==b.left) return a.left-b.left;
+        if(a.distinct!==b.distinct) return b.distinct-a.distinct;
+        return b.used-a.used;
+      });
+      const best=candidates[0];
+      for(const p of best.seq){
+        const no=n(p.plate_no);
+        shortage.set(no,Math.max(0,n(shortage.get(no))-1));
+      }
+      recs.push({printer,seq:best.seq,avail,after:best.left,used:best.used});
+    }
+
+    // العرض حسب من يخلص أول، عشان تعرف من تبدأ معه عملياً.
+    recs.sort((a,b)=>secondsUntilFree(a.printer,pmap)-secondsUntilFree(b.printer,pmap) || a.after-b.after);
+
+    body.innerHTML=recs.map((r,idx)=>{
       const current=r.printer.status==='printing'&&r.printer.plate_no?`بعد انتهاء Plate ${n(r.printer.plate_no)}`:'الآن';
-      if(!r.plate) return `<div class="smart-suggest-row"><div class="smart-suggest-printer">${esc(r.printer.printer_name)}</div><div><div class="smart-suggest-choice">—</div><div class="smart-suggest-reason">${esc(r.reason)} · المتاح المتوقع ${r.avail.toFixed(0)}g</div></div><div class="smart-suggest-fit smart-suggest-warn">لا اقتراح</div></div>`;
-      return `<div class="smart-suggest-row"><div class="smart-suggest-printer">${esc(r.printer.printer_name)}</div><div><div class="smart-suggest-choice">${current}: Plate ${n(r.plate.plate_no)}</div><div class="smart-suggest-reason">اختيار محسّن على مستوى كل الطابعات · ناقص ${r.needBefore} من هذا الـPlate · يحتاج ${n(r.plate.weight_g)}g · الوقت ${fmt(n(r.plate.print_minutes))}</div></div><div class="smart-suggest-fit">يبقى ≈ ${r.after.toFixed(0)}g</div></div>`;
+      if(!r.seq.length) return `<div class="smart-suggest-row"><div><div class="smart-suggest-printer">${esc(r.printer.printer_name)}</div><div class="smart-suggest-rank">#${idx+1}</div></div><div><div class="smart-suggest-choice">—</div><div class="smart-suggest-reason">${esc(r.reason)} · المتاح المتوقع ${r.avail.toFixed(0)}g</div></div><div class="smart-suggest-fit smart-suggest-warn">لا اقتراح</div></div>`;
+      const seqText=r.seq.map(p=>`P${n(p.plate_no)} ${n(p.weight_g)}g`).join(' → ');
+      const totalMin=r.seq.reduce((s,p)=>s+n(p.print_minutes),0);
+      return `<div class="smart-suggest-row"><div><div class="smart-suggest-printer">${esc(r.printer.printer_name)}</div><div class="smart-suggest-rank">#${idx+1}</div></div><div><div class="smart-suggest-choice">${current}: ${seqText}</div><div class="smart-suggest-reason">استخدام ${r.used.toFixed(0)}g · وقت إضافي ${fmt(totalMin)} · محسوب مع مخزون المشروع والطبعات الحالية</div></div><div class="smart-suggest-fit">يبقى ≈ ${r.after.toFixed(0)}g</div></div>`;
     }).join('');
   }
 
-  function optimizeGlobally(printers,plates,pmap,shortage){
-    const options=printers.map(printer=>{
-      const avail=availableAfterCurrent(printer,pmap);
-      const fit=plates.filter(p=>shortage[n(p.plate_no)]>0 && n(p.weight_g)<=avail);
-      // Keep the search compact but intelligent: strongest candidates first.
-      fit.sort((a,b)=>{
-        const sa=shortage[n(a.plate_no)], sb=shortage[n(b.plate_no)];
-        if(sa!==sb) return sb-sa;
-        const wa=avail-n(a.weight_g), wb=avail-n(b.weight_g);
-        if(wa!==wb) return wa-wb;
-        return n(b.print_minutes)-n(a.print_minutes);
-      });
-      return fit.slice(0,8);
-    });
-
-    let best=null, bestScore=null;
-    const used={};
-    const chosen=new Array(printers.length).fill(null);
-
-    function scoreSolution(){
-      let assigned=0, weightUsed=0, waste=0, balanceGain=0, longWork=0;
-      const finalShort={...shortage};
-      for(let i=0;i<chosen.length;i++){
-        const p=chosen[i]; if(!p) continue;
-        assigned++;
-        const no=n(p.plate_no);
-        finalShort[no]=Math.max(0,(finalShort[no]||0)-1);
-        weightUsed+=n(p.weight_g);
-        waste+=Math.max(0,availableAfterCurrent(printers[i],pmap)-n(p.weight_g));
-        longWork+=n(p.print_minutes);
-      }
-      // Large reward for reducing the biggest deficits. This keeps all kit parts balanced.
-      for(const p of plates){
-        const no=n(p.plate_no), before=shortage[no]||0, after=finalShort[no]||0;
-        balanceGain+=(before*before-after*after);
-      }
-      // Lexicographic priorities encoded with safe gaps:
-      // 1) fill as many printers as possible
-      // 2) balance the project (largest shortages first)
-      // 3) use more grams / leave less waste globally
-      // 4) prefer longer jobs slightly, so early-finishing printers get useful long work
-      return [assigned,balanceGain,weightUsed,-waste,longWork];
-    }
-
-    function better(a,b){
-      if(!b) return true;
-      for(let i=0;i<a.length;i++){
-        if(a[i]!==b[i]) return a[i]>b[i];
-      }
-      return false;
-    }
-
-    function dfs(i){
-      if(i===printers.length){
-        const sc=scoreSolution();
-        if(better(sc,bestScore)){bestScore=sc;best=[...chosen];}
-        return;
-      }
-
-      // Try real assignments before skipping.
-      for(const p of options[i]){
-        const no=n(p.plate_no);
-        if((used[no]||0)>=shortage[no]) continue;
-        used[no]=(used[no]||0)+1;
-        chosen[i]=p;
-        dfs(i+1);
-        chosen[i]=null;
-        used[no]--;
-      }
-      dfs(i+1);
-    }
-
-    dfs(0);
-    return best||chosen;
-  }
-
-  function availableAfterCurrent(a,pmap){
-    let g=Math.max(0,n(a.remaining_g));
-    if(a.status==='printing' && a.plate_no){
-      const current=pmap.get(n(a.plate_no));
-      if(current) g=Math.max(0,g-n(current.weight_g));
-    }
-    return g;
-  }
-
-  function finishSeconds(a,pmap){
-    if(a.status!=='printing') return 0;
-    if(a.manual_time_override && a.manual_finish_at){
-      return Math.max(0,(new Date(a.manual_finish_at).getTime()-Date.now())/1000);
-    }
-    const p=pmap.get(n(a.plate_no));
-    if(a.started_at && p?.print_minutes){
-      return Math.max(0,(new Date(a.started_at).getTime()+n(p.print_minutes)*60000-Date.now())/1000);
-    }
-    return Number.POSITIVE_INFINITY;
-  }
-
-  function defaultIndex(name){
-    const i=DEFAULT_ORDER.indexOf(String(name)); return i<0?999:i;
-  }
   function fmt(m){m=n(m);return `${Math.floor(m/60)}س ${m%60}د`;}
 
   function boot(){
