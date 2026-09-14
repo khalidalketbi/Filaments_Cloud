@@ -13,15 +13,20 @@ window.APP_CONFIG = {
     document.head.appendChild(s);
   });
 
-  const enableSpoolManagerMode = () => {
+  const enableProductionMode = () => {
     document.title = 'Filaments Manager';
 
     const style = document.createElement('style');
-    style.id = 'spoolManagerOnlyMode';
+    style.id = 'productionOnlyMode';
     style.textContent = `
       .nav [data-page="printers"],
+      .nav [data-page="spools"],
       #printersPage,
-      #printerModal {
+      #printerModal,
+      #spoolsPage,
+      #spoolModal,
+      #quickAdd,
+      .topbar .search {
         display: none !important;
       }
     `;
@@ -31,13 +36,23 @@ window.APP_CONFIG = {
     if (authTitle) authTitle.textContent = 'Filaments Manager';
 
     const authSubtitle = document.querySelector('#authView > p');
-    if (authSubtitle) authSubtitle.textContent = 'إدارة السبولات ومخزون الفلمنت في مكان واحد';
+    if (authSubtitle) authSubtitle.textContent = 'متابعة الإنتاج والطابعات والمشاريع';
 
     const logo = document.querySelector('.logo');
-    if (logo) logo.innerHTML = '◉ Filaments Manager<small>Spool Management</small>';
+    if (logo) logo.innerHTML = '◉ Filaments Manager<small>Production Manager</small>';
+
+    const activeSpools = document.querySelector('.nav [data-page="spools"].active');
+    if (activeSpools) {
+      activeSpools.classList.remove('active');
+      document.querySelector('.nav [data-page="dashboard"]')?.classList.add('active');
+      document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
+      document.querySelector('#dashboardPage')?.classList.remove('hidden');
+      const title = document.getElementById('pageTitle');
+      if (title) title.textContent = 'لوحة التحكم';
+    }
   };
 
-  document.addEventListener('DOMContentLoaded', enableSpoolManagerMode, { once: true });
+  document.addEventListener('DOMContentLoaded', enableProductionMode, { once: true });
 
   window.addEventListener('load', async () => {
     await load('./dashboard-pro.js');
