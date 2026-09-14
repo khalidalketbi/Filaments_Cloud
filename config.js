@@ -12,17 +12,35 @@ window.APP_CONFIG = {
     s.onerror = resolve;
     document.head.appendChild(s);
   });
+
+  const enableSpoolManagerMode = () => {
+    document.title = 'Filaments Manager';
+
+    const style = document.createElement('style');
+    style.id = 'spoolManagerOnlyMode';
+    style.textContent = `
+      .nav [data-page="printers"],
+      #printersPage,
+      #printerModal {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    const authTitle = document.querySelector('#authView h1');
+    if (authTitle) authTitle.textContent = 'Filaments Manager';
+
+    const authSubtitle = document.querySelector('#authView > p');
+    if (authSubtitle) authSubtitle.textContent = 'إدارة السبولات ومخزون الفلمنت في مكان واحد';
+
+    const logo = document.querySelector('.logo');
+    if (logo) logo.innerHTML = '◉ Filaments Manager<small>Spool Management</small>';
+  };
+
+  document.addEventListener('DOMContentLoaded', enableSpoolManagerMode, { once: true });
+
   window.addEventListener('load', async () => {
     await load('./dashboard-pro.js');
-    await load('./bambu-remote.js');
-    await load('./bambu-camera-smooth.js');
-    await load('./bambu-safari-pairing.js');
-    await load('./bambu-control-center.js');
-    await load('./bambu-quick-temp.js');
-    await load('./print-usage-live.js');
-    await load('./printer-command-queue.js');
-    await load('./mounted-spool-availability.js');
-    await load('./printer-no-spool-ux.js');
     await load('./assistant-enhancements.js');
     await load('./natural-sort.js');
     await load('./scroll-memory.js');
@@ -43,7 +61,5 @@ window.APP_CONFIG = {
     await load('./i18n-master.js');
     await load('./i18n-known-fixes.js');
     await load('./search-fix.js');
-    await load('./fleet-dashboard.js');
-    await load('./printer-card-remote-time.js');
   }, { once: true });
 })();
