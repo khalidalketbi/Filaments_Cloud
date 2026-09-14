@@ -23,34 +23,42 @@
     }).format(date);
   }
 
+  function updateCard(card){
+    const timer=card.querySelector('.printer-timer');
+    if(!timer) return;
+
+    let line=card.querySelector('.printer-finish-at');
+    if(!line){
+      line=document.createElement('div');
+      line.className='printer-finish-at';
+      timer.insertAdjacentElement('afterend',line);
+    }
+
+    const sec=parseRemaining(timer);
+    if(sec==null || sec<=0){
+      if(line.style.display!=='none') line.style.display='none';
+      if(line.textContent) line.textContent='';
+      return;
+    }
+
+    const finish=new Date(Date.now()+sec*1000);
+    const value=formatClock(finish);
+    const next=`موعد الانتهاء المتوقع: ${value}`;
+    line.style.display='block';
+    if(line.dataset.value!==value){
+      line.dataset.value=value;
+      line.innerHTML=`موعد الانتهاء المتوقع: <strong>${value}</strong>`;
+    }
+  }
+
   function update(){
-    document.querySelectorAll('#prodPrinterGrid .prod-printer-card').forEach(card=>{
-      const timer=card.querySelector('.printer-timer');
-      if(!timer) return;
-      let line=card.querySelector('.printer-finish-at');
-      if(!line){
-        line=document.createElement('div');
-        line.className='printer-finish-at';
-        timer.insertAdjacentElement('afterend',line);
-      }
-      const sec=parseRemaining(timer);
-      if(sec==null || sec<=0){
-        line.textContent='';
-        line.style.display='none';
-        return;
-      }
-      const finish=new Date(Date.now()+sec*1000);
-      line.style.display='block';
-      line.innerHTML=`موعد الانتهاء المتوقع: <strong>${formatClock(finish)}</strong>`;
-    });
+    document.querySelectorAll('#prodPrinterGrid .prod-printer-card').forEach(updateCard);
   }
 
   function boot(){
     injectStyle();
     update();
     setInterval(update,1000);
-    const root=document.getElementById('productionPage')||document.body;
-    new MutationObserver(update).observe(root,{childList:true,subtree:true,characterData:true});
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
