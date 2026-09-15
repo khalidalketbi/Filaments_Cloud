@@ -11,7 +11,14 @@
     s.textContent=`
       #productionPage .printer-manage-bar{display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px;flex-wrap:wrap}
       #productionPage .printer-add-btn{min-height:40px}
-      #productionPage .printer-remove-btn{width:100%;margin-top:8px;min-height:38px;border-radius:10px;border:1px solid color-mix(in srgb,var(--warn) 55%,var(--line));background:color-mix(in srgb,var(--warn) 9%,var(--card2));color:inherit;font-weight:800}
+      #productionPage .printer-remove-wrap{display:block;width:100%;margin-top:8px}
+      #productionPage .printer-remove-btn{
+        display:block !important;width:100% !important;min-height:42px !important;
+        border-radius:12px !important;border:1px solid #d9534f !important;
+        background:rgba(217,83,79,.12) !important;color:#ff8d88 !important;
+        font-weight:900 !important;font-size:14px !important;cursor:pointer !important;
+      }
+      #productionPage .printer-remove-btn:disabled{opacity:.55;cursor:wait !important}
       #printerManageModal .dialog{width:min(460px,100%)}
       #printerManageModal .pmgr-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     `; document.head.appendChild(s);
@@ -54,14 +61,32 @@
     const projectId=localStorage.getItem(KEY), name=printerName(card);
     if(!projectId||!name) return;
     const state=(card.querySelector('.status-select')?.value||'').trim();
-    const warning=state==='printing'?'\nتنبيه: الطابعة ظاهرة حالياً أنها تطبع. حذفها لن يحسب الطبعة كمكتملة.':'';
-    if(!confirm(`هل تريد حذف الطابعة ${name} من هذا المشروع؟${warning}\n\nسجل الطبعات القديمة لن يتم حذفه.`)) return;
+    const warning=state==='printing'?'\n\nتنبيه: هذه الطابعة حالياً تطبع. حذفها لن يحسب الطبعة كمكتملة.':'';
+    if(!confirm(`هل تريد حذف الطابعة ${name} من هذا المشروع؟${warning}\n\nسجل الطبعات القديمة سيبقى محفوظاً.`)) return;
     busy=true; btn.disabled=true; const old=btn.textContent; btn.textContent='جاري الحذف…';
     const {error}=await db.from('production_assignments').delete().eq('project_id',projectId).eq('printer_name',name);
     busy=false;
     if(error){alert('فشل الحذف: '+error.message);btn.disabled=false;btn.textContent=old;return;}
     card.remove();
     setTimeout(()=>location.reload(),250);
+  }
+
+  function addDeleteButton(card){
+    if(card.querySelector('.printer-remove-btn')) return;
+    const wrap=document.createElement('div');
+    wrap.className='printer-remove-wrap';
+    const b=document.createElement('button');
+    b.type='button';
+    b.className='printer-remove-btn';
+    b.textContent='🗑 حذف الطابعة من المشروع';
+    b.addEventListener('click',()=>removePrinter(card,b));
+    wrap.appendChild(b);
+
+    const refill=card.querySelector('.printer-refill-btn');
+    const refillMsg=card.querySelector('.printer-refill-msg');
+    if(refillMsg) refillMsg.insertAdjacentElement('afterend',wrap);
+    else if(refill) refill.insertAdjacentElement('afterend',wrap);
+    else card.appendChild(wrap);
   }
 
   function enhance(){
@@ -79,19 +104,15 @@
         document.getElementById('printerManageModal').classList.add('show');
       };
     }
-    document.querySelectorAll('#prodPrinterGrid .prod-printer-card').forEach(card=>{
-      if(card.querySelector('.printer-remove-btn')) return;
-      const b=document.createElement('button'); b.type='button'; b.className='printer-remove-btn'; b.textContent='− حذف الطابعة من المشروع';
-      b.onclick=()=>removePrinter(card,b);
-      card.appendChild(b);
-    });
+    document.querySelectorAll('#prodPrinterGrid .prod-printer-card').forEach(addDeleteButton);
   }
 
   function boot(){
     enhance();
     const root=document.getElementById('productionPage')||document.body;
     let t=null;
-    new MutationObserver(()=>{clearTimeout(t);t=setTimeout(enhance,80);}).observe(root,{childList:true,subtree:true});
+    new MutationObserver(()=>{clearTimeout(t);t=setTimeout(enhance,60);}).observe(root,{childList:true,subtree:true});
+    setInterval(enhance,700);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
