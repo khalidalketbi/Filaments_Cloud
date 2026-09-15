@@ -14,9 +14,9 @@
     const s=document.createElement('style');s.id='allProjectsStyle';s.textContent=`
       #allProjectsView{display:grid;gap:14px}
       #allProjectsView .ap-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
-      #allProjectsView .ap-sort{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      #allProjectsView .ap-sort{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
       #allProjectsView .ap-sort label{font-size:12px;color:var(--muted)}
-      #allProjectsView .ap-sort select{min-height:40px;min-width:210px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:inherit}
+      #allProjectsView .ap-sort select{flex:1;min-height:40px;min-width:210px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:inherit}
       #allProjectsView .ap-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
       #allProjectsView .ap-kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
       #allProjectsView .ap-kpi span{font-size:11px;color:var(--muted)}#allProjectsView .ap-kpi strong{display:block;font-size:24px;margin-top:4px}
@@ -31,7 +31,7 @@
       #allProjectsView .ap-main{display:flex;justify-content:space-between;gap:10px;align-items:end;margin-top:9px}
       #allProjectsView .ap-plate{font-size:18px;font-weight:900}.ap-grams{font-size:20px;font-weight:900}
       #allProjectsView .ap-meta{font-size:11px;color:var(--muted);margin-top:4px}
-      @media(max-width:760px){#allProjectsView .ap-summary{grid-template-columns:1fr 1fr}#allProjectsView .ap-printers{grid-template-columns:1fr}#allProjectsView .ap-sort{width:100%}#allProjectsView .ap-sort select{width:100%}}
+      @media(max-width:760px){#allProjectsView .ap-summary{grid-template-columns:1fr 1fr}#allProjectsView .ap-printers{grid-template-columns:1fr}#allProjectsView .ap-sort{width:auto}#allProjectsView .ap-sort select{width:100%}}
     `;document.head.appendChild(s);
   }
 
@@ -80,7 +80,6 @@
     view.innerHTML=`
       <div class="ap-head">
         <div><h2 style="margin:0">جميع المشاريع</h2><div class="muted">كل الطابعات من كل المشاريع في ترتيب واحد</div></div>
-        <div class="ap-sort"><label for="allProjectsSort">فرز الطابعات</label><select id="allProjectsSort"><option value="default">الترتيب الأساسي</option><option value="time-asc">أقل وقت أولاً</option><option value="time-desc">أكثر وقت أولاً</option><option value="filament-asc">أقل فلمنت أولاً</option><option value="filament-desc">أعلى فلمنت أولاً</option></select></div>
       </div>
       <div class="ap-summary">
         <div class="ap-kpi"><span>المشاريع</span><strong>${projects.length}</strong></div>
@@ -88,6 +87,7 @@
         <div class="ap-kpi"><span>تطبع الآن</span><strong>${printing}</strong></div>
         <div class="ap-kpi"><span>الفلمنت على الطابعات</span><strong>${grams.toFixed(0)}g</strong></div>
       </div>
+      <div class="ap-sort"><label for="allProjectsSort">فرز الطابعات</label><select id="allProjectsSort"><option value="default">الترتيب الأساسي</option><option value="time-asc">أقل وقت أولاً</option><option value="time-desc">أكثر وقت أولاً</option><option value="filament-asc">أقل فلمنت أولاً</option><option value="filament-desc">أعلى فلمنت أولاً</option></select></div>
       <section class="ap-all-printers">
         <div class="ap-printers">${sortedAll.length?sortedAll.map(a=>{
           const sec=secondsUntilDone(a,pmap);
