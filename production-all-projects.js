@@ -5,7 +5,7 @@
   const MODE_KEY='fm_project_view_mode';
   const SORT_KEY='productionPrinterSortMode';
   const DEFAULT_ORDER=['A1','A2','M1','M2','M3','M4','M5','U1'];
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const n=v=>Number(v)||0;
   let lastData=null;
 
@@ -78,7 +78,7 @@
     view.innerHTML=`
       <div class="ap-head">
         <div><h2 style="margin:0">جميع المشاريع</h2><div class="muted">كل الطابعات من كل المشاريع في شاشة واحدة</div></div>
-        <div class="ap-sort"><label for="allProjectsSort">فرز الطابعات</label><select id="allProjectsSort"><option value="default">الترتيب الأساسي</option><option value="time-asc">أول طابعة تخلص → آخر طابعة</option><option value="time-desc">آخر طابعة تخلص → أول طابعة</option><option value="filament-asc">أقل فلمنت أولاً</option><option value="filament-desc">أعلى فلمنت أولاً</option></select></div>
+        <div class="ap-sort"><label for="allProjectsSort">فرز الطابعات</label><select id="allProjectsSort"><option value="default">الترتيب الأساسي</option><option value="time-asc">أقل وقت أولاً</option><option value="time-desc">أكثر وقت أولاً</option><option value="filament-asc">أقل فلمنت أولاً</option><option value="filament-desc">أعلى فلمنت أولاً</option></select></div>
       </div>
       <div class="ap-summary">
         <div class="ap-kpi"><span>المشاريع</span><strong>${projects.length}</strong></div>
