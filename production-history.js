@@ -31,6 +31,8 @@
     document.getElementById('prodHistoryPlate').onchange=load;
     document.getElementById('prodHistoryProject').onchange=e=>{
       if(e.target.value){projectId=e.target.value;localStorage.setItem(CURRENT_KEY,projectId);}
+      const pr=document.getElementById('prodHistoryPrinter'),pl=document.getElementById('prodHistoryPlate');
+      if(pr) pr.value=''; if(pl) pl.value='';
       load();
     };
     document.addEventListener('click',e=>{const b=e.target.closest('.nav [data-page="history"]');if(b){projectId=null;setTimeout(load,0);}});
@@ -42,9 +44,7 @@
     if(error)throw error;
     const projects=data||[];
     const sel=document.getElementById('prodHistoryProject');
-    if(sel){
-      sel.innerHTML=projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
-    }
+    if(sel) sel.innerHTML=projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
     const saved=localStorage.getItem(CURRENT_KEY);
     const chosen=projects.find(p=>p.id===saved)||projects[0]||null;
     projectId=chosen?.id||null;
@@ -59,18 +59,31 @@
       st.textContent='جاري التحميل…';
       if(!projectId)await ensureProject();
       if(!projectId){st.textContent='لا يوجد مشروع إنتاج.';return;}
-      let q=db.from('production_print_history').select('*').eq('project_id',projectId).order('finished_at',{ascending:false}).limit(500);
-      const pr=document.getElementById('prodHistoryPrinter').value;
-      const pl=document.getElementById('prodHistoryPlate').value;
-      if(pr)q=q.eq('printer_name',pr);if(pl)q=q.eq('plate_no',Number(pl));
-      const {data,error}=await q;if(error)throw error;const rows=data||[];
-      const printers=[...new Set(rows.map(x=>x.printer_name))].sort();
-      const plates=[...new Set(rows.map(x=>x.plate_no))].sort((a,b)=>a-b);
-      const prSel=document.getElementById('prodHistoryPrinter'),plSel=document.getElementById('prodHistoryPlate');
-      const oldPr=prSel.value,oldPl=plSel.value;
+
+      const prSel=document.getElementById('prodHistoryPrinter');
+      const plSel=document.getElementById('prodHistoryPlate');
+      const oldPr=prSel.value, oldPl=plSel.value;
+
+      const {data:allData,error:allErr}=await db.from('production_print_history')
+        .select('printer_name,plate_no')
+        .eq('project_id',projectId)
+        .order('printer_name');
+      if(allErr) throw allErr;
+      const allRows=allData||[];
+      const printers=[...new Set(allRows.map(x=>x.printer_name).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}));
+      const plates=[...new Set(allRows.map(x=>Number(x.plate_no)).filter(Number.isFinite))].sort((a,b)=>a-b);
       prSel.innerHTML='<option value="">كل الطابعات</option>'+printers.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
       plSel.innerHTML='<option value="">كل الـ Plates</option>'+plates.map(x=>`<option value="${x}">Plate ${x}</option>`).join('');
-      prSel.value=oldPr;plSel.value=oldPl;
+      prSel.value=printers.includes(oldPr)?oldPr:'';
+      plSel.value=plates.includes(Number(oldPl))?oldPl:'';
+
+      let q=db.from('production_print_history').select('*').eq('project_id',projectId).order('finished_at',{ascending:false}).limit(500);
+      const pr=prSel.value;
+      const pl=plSel.value;
+      if(pr) q=q.eq('printer_name',pr);
+      if(pl) q=q.eq('plate_no',Number(pl));
+      const {data,error}=await q;if(error)throw error;const rows=data||[];
+
       const totalG=rows.reduce((a,x)=>a+Number(x.grams_used||0),0),totalSec=rows.reduce((a,x)=>a+Number(x.actual_seconds||0),0);
       document.getElementById('prodHistorySummary').innerHTML=`<div class="kpi"><span>إجمالي الطبعات</span><strong>${rows.length}</strong></div><div class="kpi"><span>إجمالي الفلمنت</span><strong>${totalG.toFixed(0)}g</strong></div><div class="kpi"><span>إجمالي الوقت</span><strong>${fmtDuration(totalSec)}</strong></div>`;
       const list=document.getElementById('prodHistoryList');
