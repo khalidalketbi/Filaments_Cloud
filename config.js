@@ -67,6 +67,7 @@ window.APP_CONFIG = {
     await load('./production-refill.js');
     await load('./production-printer-management.js');
     await load('./production-printer-constraints.js');
+    await load('./production-plate-options.js');
     await load('./production-smart-suggestions.js');
     await load('./production-history.js');
     await load('./assistant-enhancements.js');
