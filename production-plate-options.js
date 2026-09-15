@@ -3,32 +3,45 @@
   if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
   const db=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const PROJECT_KEY='fm_current_project_id';
-  let projectId=null, plates=[], assignments=[], loading=false, applyTimer=null;
+  let projectId=null, projectName='', plates=[], assignments=[], loading=false, applyTimer=null;
   const n=v=>Number(v)||0;
   const allowed=(p,printer)=>!Array.isArray(p?.allowed_printers)||!p.allowed_printers.length||p.allowed_printers.includes(printer);
   const fmt=mins=>`${Math.floor(n(mins)/60)}س${n(mins)%60?` ${n(mins)%60}د`:''}`;
+  const isSkin=()=>String(projectName||'').trim().toLowerCase()==='skin';
+  const isSkinU1ComboAssignment=a=>isSkin() && String(a?.printer_name||'').trim().toUpperCase()==='U1' && a?.status==='printing' && [2,3].includes(n(a?.plate_no));
 
   async function load(){
     const id=localStorage.getItem(PROJECT_KEY);
-    if(!id){projectId=null;plates=[];assignments=[];return;}
+    if(!id){projectId=null;projectName='';plates=[];assignments=[];return;}
     if(loading)return;
     loading=true;
-    const [plr,ar]=await Promise.all([
+    const [pr,plr,ar]=await Promise.all([
+      db.from('production_projects').select('name').eq('id',id).maybeSingle(),
       db.from('production_plates').select('plate_no,weight_g,print_minutes,target_qty,completed_qty,allowed_printers').eq('project_id',id).order('plate_no'),
       db.from('production_assignments').select('id,printer_name,plate_no,status').eq('project_id',id)
     ]);
     loading=false;
     if(plr.error||ar.error)return;
     projectId=id;
+    projectName=pr.data?.name||'';
     plates=plr.data||[];
     assignments=ar.data||[];
     apply();
   }
 
+  function assignmentReservesPlate(a,plateNo){
+    if(a.status!=='printing'||!a.plate_no)return false;
+    const selected=n(a.plate_no), wanted=n(plateNo);
+    if(selected===wanted)return true;
+    // In Skin, U1 prints Plate 2 + Plate 3 together on the same bed.
+    // Selecting either one reserves both quantities.
+    if(isSkinU1ComboAssignment(a) && [2,3].includes(wanted))return true;
+    return false;
+  }
+
   function activeCountForPlate(plateNo,excludeAssignmentId){
     return assignments.filter(a=>
-      a.status==='printing' &&
-      n(a.plate_no)===n(plateNo) &&
+      assignmentReservesPlate(a,plateNo) &&
       String(a.id)!==String(excludeAssignmentId||'')
     ).length;
   }
@@ -40,9 +53,13 @@
     let status='';
     if(isCurrent){
       status=`موجود ${done}/${target} • أنت تطبع واحدة الآن`;
+      if(isSkin() && [2,3].includes(n(p.plate_no))){
+        const currentAssignment=assignments.find(a=>String(a.id)===String(assignmentId));
+        if(isSkinU1ComboAssignment(currentAssignment)) status+=' • U1 تطبع P2 + P3 معاً';
+      }
       if(activeOthers)status+=` • ${activeOthers} أخرى قيد الطباعة`;
     }else if(activeOthers){
-      status=`موجود ${done}/${target} • ${activeOthers} قيد الطباعة • باقي ${freeRemaining}`;
+      status=`موجود ${done}/${target} • ${activeOthers} قيد الطباعة/محجوز • باقي ${freeRemaining}`;
     }else{
       status=freeRemaining>0?`موجود ${done}/${target} • باقي ${freeRemaining}`:`مكتمل/محجوز ${target}/${target}`;
     }
@@ -68,10 +85,13 @@
         const activeOthers=activeCountForPlate(p.plate_no,isCurrent?assignmentId:null);
         const availableSlots=Math.max(0,target-done-activeOthers-(isCurrent?1:0));
 
-        // Keep the current plate visible on the printer already printing it,
-        // but hide it everywhere else once all remaining required copies are already in progress.
         if(!isCurrent && availableSlots<=0)return;
         if(!isCurrent && !allowed(p,printer))return;
+
+        // If U1 is already printing one half of the Skin P2+P3 combo, the companion
+        // Plate is already included in that same print and should not be offered again.
+        const thisAssignment=assignments.find(a=>String(a.id)===String(assignmentId));
+        if(!isCurrent && isSkinU1ComboAssignment(thisAssignment) && [2,3].includes(n(p.plate_no)))return;
 
         opts.push(`<option value="${p.plate_no}">${label(p,isCurrent,assignmentId)}</option>`);
       });
@@ -86,10 +106,7 @@
     });
   }
 
-  function schedule(){clearTimeout(applyTimer);applyTimer=setTimeout(()=>{
-    const current=localStorage.getItem(PROJECT_KEY);
-    if(current!==projectId)load(); else load();
-  },120);}
+  function schedule(){clearTimeout(applyTimer);applyTimer=setTimeout(()=>load(),120);}
 
   function boot(){
     load();
