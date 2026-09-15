@@ -3,7 +3,8 @@
   if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
   const db=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const KEY='fm_current_project_id';
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const MODE_KEY='fm_project_view_mode';
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 
   function style(){
     if(document.getElementById('globalProjectSwitcherStyle'))return;
@@ -28,21 +29,29 @@
     let wrap=document.getElementById('globalProjectSwitcher');
     if(!wrap){
       wrap=document.createElement('div');wrap.id='globalProjectSwitcher';wrap.className='global-project-switcher';
-      wrap.innerHTML='<label>المشروع الحالي</label><select id="globalProjectSelect"></select>';
+      wrap.innerHTML='<label>عرض المشاريع</label><select id="globalProjectSelect"></select>';
       const h=host();
       const firstPage=h.querySelector('.page');
       if(firstPage)h.insertBefore(wrap,firstPage);else h.prepend(wrap);
     }
     const sel=document.getElementById('globalProjectSelect');
     if(!sel)return;
-    sel.innerHTML=projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    sel.innerHTML='<option value="__all__">جميع المشاريع</option>'+projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
     if(!projects.length){wrap.style.display='none';return;}else wrap.style.display='flex';
+
     let current=localStorage.getItem(KEY);
     if(!projects.some(p=>p.id===current))current=projects[0].id;
     localStorage.setItem(KEY,current);
-    sel.value=current;
+    const mode=localStorage.getItem(MODE_KEY)==='all'?'all':'single';
+    sel.value=mode==='all'?'__all__':current;
+
     sel.onchange=()=>{
-      localStorage.setItem(KEY,sel.value);
+      if(sel.value==='__all__'){
+        localStorage.setItem(MODE_KEY,'all');
+      }else{
+        localStorage.setItem(MODE_KEY,'single');
+        localStorage.setItem(KEY,sel.value);
+      }
       location.reload();
     };
   }
