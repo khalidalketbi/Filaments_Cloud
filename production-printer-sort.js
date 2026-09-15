@@ -29,7 +29,10 @@
   }
 
   function getTimeSeconds(card){
-    const txt=(card.querySelector('.printer-timer')?.textContent||'').trim();
+    const manualTs=Number(card.dataset.manualFinishAt||0);
+    if(manualTs>0) return Math.max(0,Math.floor((manualTs-Date.now())/1000));
+    const source=card.querySelector('.manual-timer-display') || card.querySelector('.printer-timer');
+    const txt=(source?.textContent||'').trim();
     const m=txt.match(/(\d{1,3}):(\d{2}):(\d{2})/);
     if(!m) return null;
     return Number(m[1])*3600 + Number(m[2])*60 + Number(m[3]);
@@ -70,30 +73,24 @@
     const grid=document.getElementById('prodPrinterGrid');
     const select=document.getElementById('printerSortSelect');
     if(!grid||!select) return;
-
     const current=[...grid.querySelectorAll(':scope > .prod-printer-card')];
     if(current.length<2) return;
-
     const mode=select.value||'default';
     const sorted=[...current].sort((a,b)=>compareForMode(mode,a,b));
     const changed=sorted.some((card,i)=>card!==current[i]);
     if(!changed) return;
-
     applying=true;
     try{
       const frag=document.createDocumentFragment();
       sorted.forEach(card=>frag.appendChild(card));
       grid.appendChild(frag);
-    } finally {
-      applying=false;
-    }
+    } finally { applying=false; }
   }
 
   function ensureControls(){
     injectStyle();
     const grid=document.getElementById('prodPrinterGrid');
     if(!grid) return false;
-
     if(!document.getElementById('printerSortSelect')){
       const wrap=document.createElement('div');
       wrap.className='printer-sort-wrap';
@@ -101,12 +98,8 @@
       grid.parentElement?.insertBefore(wrap,grid);
       const select=wrap.querySelector('select');
       select.value=localStorage.getItem(STORAGE_KEY)||'default';
-      select.addEventListener('change',()=>{
-        localStorage.setItem(STORAGE_KEY,select.value);
-        applySort();
-      });
+      select.addEventListener('change',()=>{localStorage.setItem(STORAGE_KEY,select.value);applySort();});
     }
-
     applySort();
     return true;
   }
@@ -118,10 +111,7 @@
     observer=new MutationObserver(()=>{
       if(applying || pending) return;
       pending=true;
-      requestAnimationFrame(()=>{
-        pending=false;
-        ensureControls();
-      });
+      requestAnimationFrame(()=>{pending=false;ensureControls();});
     });
     observer.observe(grid,{childList:true});
   }
@@ -132,12 +122,8 @@
     ensureTimer=setInterval(()=>{
       tries++;
       if(ensureControls()) attachObserver();
-      if(tries>120 && document.getElementById('prodPrinterGrid')){
-        clearInterval(ensureTimer);
-        ensureTimer=null;
-      }
+      if(tries>120 && document.getElementById('prodPrinterGrid')){clearInterval(ensureTimer);ensureTimer=null;}
     },500);
-
     setInterval(()=>{
       const mode=document.getElementById('printerSortSelect')?.value;
       if(mode==='time-asc'||mode==='time-desc') applySort();
