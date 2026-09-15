@@ -5,7 +5,7 @@
   const MODE_KEY='fm_project_view_mode';
   const SORT_KEY='productionPrinterSortMode';
   const DEFAULT_ORDER=['A1','A2','M1','M2','M3','M4','M5','U1'];
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const n=v=>Number(v)||0;
   let lastData=null;
 
@@ -20,14 +20,14 @@
       #allProjectsView .ap-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
       #allProjectsView .ap-kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
       #allProjectsView .ap-kpi span{font-size:11px;color:var(--muted)}#allProjectsView .ap-kpi strong{display:block;font-size:24px;margin-top:4px}
-      #allProjectsView .ap-project{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
-      #allProjectsView .ap-project-title{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}
+      #allProjectsView .ap-all-printers{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
       #allProjectsView .ap-printers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
       #allProjectsView .ap-printer{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
       #allProjectsView .ap-printer.printing{border-color:color-mix(in srgb,var(--accent2) 55%,var(--line))}
       #allProjectsView .ap-printer-top{display:flex;justify-content:space-between;gap:8px;align-items:center}
       #allProjectsView .ap-printer-name{font-size:18px;font-weight:900}
       #allProjectsView .ap-state{font-size:11px;color:var(--muted)}
+      #allProjectsView .ap-project-badge{display:inline-block;margin-top:4px;padding:2px 7px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:10px;color:var(--muted)}
       #allProjectsView .ap-main{display:flex;justify-content:space-between;gap:10px;align-items:end;margin-top:9px}
       #allProjectsView .ap-plate{font-size:18px;font-weight:900}.ap-grams{font-size:20px;font-weight:900}
       #allProjectsView .ap-meta{font-size:11px;color:var(--muted);margin-top:4px}
@@ -71,13 +71,15 @@
     if(localStorage.getItem(MODE_KEY)!=='all')return;
     const view=document.getElementById('allProjectsView');if(!view)return;
     const pmap=new Map(plates.map(p=>[`${p.project_id}:${p.plate_no}`,p]));
+    const projectMap=new Map(projects.map(p=>[p.id,p]));
     const printing=assignments.filter(a=>a.status==='printing').length;
     const grams=assignments.reduce((s,a)=>s+n(a.remaining_g),0);
     const sortMode=localStorage.getItem(SORT_KEY)||'default';
+    const sortedAll=sortPrinters(assignments,pmap,sortMode);
 
     view.innerHTML=`
       <div class="ap-head">
-        <div><h2 style="margin:0">جميع المشاريع</h2><div class="muted">كل الطابعات من كل المشاريع في شاشة واحدة</div></div>
+        <div><h2 style="margin:0">جميع المشاريع</h2><div class="muted">كل الطابعات من كل المشاريع في ترتيب واحد</div></div>
         <div class="ap-sort"><label for="allProjectsSort">فرز الطابعات</label><select id="allProjectsSort"><option value="default">الترتيب الأساسي</option><option value="time-asc">أقل وقت أولاً</option><option value="time-desc">أكثر وقت أولاً</option><option value="filament-asc">أقل فلمنت أولاً</option><option value="filament-desc">أعلى فلمنت أولاً</option></select></div>
       </div>
       <div class="ap-summary">
@@ -86,16 +88,14 @@
         <div class="ap-kpi"><span>تطبع الآن</span><strong>${printing}</strong></div>
         <div class="ap-kpi"><span>الفلمنت على الطابعات</span><strong>${grams.toFixed(0)}g</strong></div>
       </div>
-      ${projects.map(p=>{
-        const raw=assignments.filter(a=>a.project_id===p.id);
-        const list=sortPrinters(raw,pmap,sortMode);
-        const run=raw.filter(a=>a.status==='printing').length;
-        return `<section class="ap-project"><div class="ap-project-title"><div><b style="font-size:20px">${esc(p.name)}</b><div class="ap-meta">${run} تطبع الآن · ${raw.length} طابعات</div></div></div><div class="ap-printers">${list.length?list.map(a=>{
+      <section class="ap-all-printers">
+        <div class="ap-printers">${sortedAll.length?sortedAll.map(a=>{
           const sec=secondsUntilDone(a,pmap);
           const finish=sec!=null?new Date(Date.now()+sec*1000).toLocaleTimeString('ar-AE',{hour:'numeric',minute:'2-digit',hour12:true}):'';
-          return `<div class="ap-printer ${a.status==='printing'?'printing':''}"><div class="ap-printer-top"><div class="ap-printer-name">${esc(a.printer_name)}</div><div class="ap-state">${a.status==='printing'?'🟢 يطبع الآن':a.status==='paused'?'🟠 متوقفة':'⚪ جاهزة'}</div></div><div class="ap-main"><div><div class="ap-meta">الحالي</div><div class="ap-plate">${a.plate_no?`Plate ${a.plate_no}`:'—'}</div></div><div style="text-align:left"><div class="ap-meta">الفلمنت</div><div class="ap-grams">${n(a.remaining_g).toFixed(0)}g</div></div></div>${a.status==='printing'?`<div class="ap-meta" style="margin-top:8px">المتبقي: <b>${fmt(sec)}</b>${finish?` · ينتهي ${finish}`:''}</div>`:''}</div>`;
-        }).join(''):'<div class="muted">لا توجد طابعات في هذا المشروع.</div>'}</div></section>`;
-      }).join('')}`;
+          const projectName=projectMap.get(a.project_id)?.name||'—';
+          return `<div class="ap-printer ${a.status==='printing'?'printing':''}"><div class="ap-printer-top"><div><div class="ap-printer-name">${esc(a.printer_name)}</div><span class="ap-project-badge">${esc(projectName)}</span></div><div class="ap-state">${a.status==='printing'?'🟢 يطبع الآن':a.status==='paused'?'🟠 متوقفة':'⚪ جاهزة'}</div></div><div class="ap-main"><div><div class="ap-meta">الحالي</div><div class="ap-plate">${a.plate_no?`Plate ${a.plate_no}`:'—'}</div></div><div style="text-align:left"><div class="ap-meta">الفلمنت</div><div class="ap-grams">${n(a.remaining_g).toFixed(0)}g</div></div></div>${a.status==='printing'?`<div class="ap-meta" style="margin-top:8px">المتبقي: <b>${fmt(sec)}</b>${finish?` · ينتهي ${finish}`:''}</div>`:''}</div>`;
+        }).join(''):'<div class="muted">لا توجد طابعات.</div>'}</div>
+      </section>`;
 
     const sel=document.getElementById('allProjectsSort');
     if(sel){
