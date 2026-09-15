@@ -5,6 +5,7 @@
   const currentKey='fm_current_project_id';
   const n=v=>Number(v)||0;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const plateAllowed=(p,printerName)=>!Array.isArray(p?.allowed_printers)||!p.allowed_printers.length||p.allowed_printers.includes(printerName);
 
   function injectStyle(){
     if(document.getElementById('smartSuggestStyle')) return;
@@ -57,8 +58,8 @@
     return Math.max(0,Math.floor((end-Date.now())/1000));
   }
 
-  function generateSequences(plates, shortage, capacity){
-    const valid=plates.filter(p=>n(shortage.get(n(p.plate_no)))>0 && n(p.weight_g)>0 && n(p.weight_g)<=capacity);
+  function generateSequences(plates, shortage, capacity, printerName){
+    const valid=plates.filter(p=>plateAllowed(p,printerName) && n(shortage.get(n(p.plate_no)))>0 && n(p.weight_g)>0 && n(p.weight_g)<=capacity);
     const out=[];
     const counts=new Map();
     const seq=[];
@@ -88,14 +89,10 @@
   }
 
   function candidateScore(c,capacity){
-    // 1) استغلال السبول مهم جداً، لكن فرق 1-3g لا يطغى على توازن المشروع.
     const wastePenalty=c.left*4;
-    // 2) أعط أولوية للـPlates الأكثر نقصاً.
     const urgencyBonus=c.urgency*10;
-    // 3) التنويع أفضل من تكرار نفس Plate إذا الفرق في الهدر بسيط.
     const diversityBonus=c.distinct*9;
     const duplicatePenalty=c.duplicatePenalty*7;
-    // 4) كافئ استخدام أغلب السبول.
     const utilizationBonus=capacity>0?(c.used/capacity)*120:0;
     return urgencyBonus+diversityBonus+utilizationBonus-wastePenalty-duplicatePenalty;
   }
@@ -125,8 +122,6 @@
     const shortage=new Map();
     for(const p of plates) shortage.set(n(p.plate_no),Math.max(0,n(p.target_qty)-n(projected.get(n(p.plate_no)))));
 
-    // نبدأ بأصغر سبول متاح بعد الطبعة الحالية، لأنه الأقل مرونة ويحتاج أفضل fit أولاً.
-    // عند تساوي الجرامات، الطابعة التي تنتهي أولاً تأخذ الأولوية.
     const order=[...printers].sort((a,b)=>{
       const ga=availableAfterCurrent(a,pmap), gb=availableAfterCurrent(b,pmap);
       if(ga!==gb) return ga-gb;
@@ -136,10 +131,10 @@
     const recs=[];
     for(const printer of order){
       const avail=availableAfterCurrent(printer,pmap);
-      const candidates=generateSequences(plates,shortage,avail);
+      const candidates=generateSequences(plates,shortage,avail,printer.printer_name);
       if(!candidates.length){
         const stillNeeded=[...shortage.values()].some(q=>q>0);
-        recs.push({printer,seq:[],avail,after:avail,reason:stillNeeded?'لا توجد تركيبة ناقصة تناسب الفلمنت المتبقي':'المشروع مكتمل حسب الطباعة الحالية'});
+        recs.push({printer,seq:[],avail,after:avail,reason:stillNeeded?'لا توجد تركيبة ناقصة تناسب الفلمنت أو صلاحية الطابعة':'المشروع مكتمل حسب الطباعة الحالية'});
         continue;
       }
 
@@ -158,7 +153,6 @@
       recs.push({printer,seq:best.seq,avail,after:best.left,used:best.used});
     }
 
-    // العرض حسب من يخلص أول، عشان تعرف من تبدأ معه عملياً.
     recs.sort((a,b)=>secondsUntilFree(a.printer,pmap)-secondsUntilFree(b.printer,pmap) || a.after-b.after);
 
     body.innerHTML=recs.map((r,idx)=>{
