@@ -9,7 +9,6 @@
   const PROJECT_KEY = 'fm_current_project_id';
   let busy = false;
   let timer = null;
-
   const n = v => Number(v) || 0;
 
   function injectStyle(){
@@ -19,15 +18,18 @@
     s.textContent = `
       #dashboardPage .pdash-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
       #dashboardPage .pdash-kpi.pdash-eta strong{font-size:19px;line-height:1.35}
-      #dashboardPage .pdash-kpi.pdash-eta .eta-time{display:block;font-size:22px;font-weight:900;margin-top:2px}
-      #dashboardPage .pdash-kpi.pdash-eta .eta-day{display:block;font-size:12px;color:var(--muted);margin-top:3px;font-weight:700}
+      #dashboardPage .pdash-kpi.pdash-eta .eta-time,
+      #productionPage .kpi.prod-eta .eta-time{display:block;font-size:22px;font-weight:900;margin-top:2px}
+      #dashboardPage .pdash-kpi.pdash-eta .eta-day,
+      #productionPage .kpi.prod-eta .eta-day{display:block;font-size:12px;color:var(--muted);margin-top:3px;font-weight:700}
+      #productionPage .kpi.prod-eta strong{font-size:19px;line-height:1.35}
       @media(max-width:1250px){#dashboardPage .pdash-kpis{grid-template-columns:repeat(3,1fr)}}
       @media(max-width:900px){#dashboardPage .pdash-kpis{grid-template-columns:repeat(2,1fr)}}
     `;
     document.head.appendChild(s);
   }
 
-  function ensureCard(){
+  function ensureDashboardCard(){
     const grid = document.querySelector('#dashboardPage .pdash-kpis');
     if (!grid) return null;
     let card = document.getElementById('pdEtaCard');
@@ -35,10 +37,21 @@
       card = document.createElement('div');
       card.id = 'pdEtaCard';
       card.className = 'pdash-kpi pdash-eta';
-      card.innerHTML = `
-        <span>الانتهاء المتوقع للمشروع</span>
-        <strong id="pdEta">—</strong>
-        <small id="pdEtaMeta">حسب الطابعات ووقت الطباعة الحالي</small>`;
+      card.innerHTML = `<span>الانتهاء المتوقع للمشروع</span><strong id="pdEta">—</strong><small id="pdEtaMeta">حسب الطابعات ووقت الطباعة الحالي</small>`;
+      grid.appendChild(card);
+    }
+    return card;
+  }
+
+  function ensureProductionCard(){
+    const grid = document.querySelector('#productionPage #prodKpis');
+    if (!grid) return null;
+    let card = document.getElementById('prodEtaCard');
+    if (!card){
+      card = document.createElement('div');
+      card.id = 'prodEtaCard';
+      card.className = 'kpi prod-eta';
+      card.innerHTML = `<span>الانتهاء المتوقع للمشروع</span><strong id="prodEta">—</strong><small id="prodEtaMeta">حسب الطابعات ووقت الطباعة الحالي</small>`;
       grid.appendChild(card);
     }
     return card;
@@ -57,18 +70,14 @@
   }
 
   function formatEta(date){
-    const day = new Intl.DateTimeFormat('ar-AE', {
-      weekday:'long', day:'numeric', month:'long'
-    }).format(date);
-    const time = new Intl.DateTimeFormat('ar-AE', {
-      hour:'numeric', minute:'2-digit', hour12:true
-    }).format(date);
-    return { day, time };
+    return {
+      day: new Intl.DateTimeFormat('ar-AE',{weekday:'long',day:'numeric',month:'long'}).format(date),
+      time: new Intl.DateTimeFormat('ar-AE',{hour:'numeric',minute:'2-digit',hour12:true}).format(date)
+    };
   }
 
   function buildEstimate(plates, assignments){
     if (!assignments.length) return { ok:false, reason:'لا توجد طابعات في المشروع' };
-
     const pmap = new Map(plates.map(p => [n(p.plate_no), p]));
     const projected = new Map(plates.map(p => [n(p.plate_no), n(p.completed_qty)]));
 
@@ -83,7 +92,6 @@
       name: String(a.printer_name || '').trim(),
       available: remainingSeconds(a, pmap.get(n(a.plate_no)))
     })).filter(p => p.name);
-
     if (!printers.length) return { ok:false, reason:'لا توجد طابعات صالحة للحساب' };
 
     const jobs = [];
@@ -95,11 +103,8 @@
       for (let i=0; i<need; i++) jobs.push({ no, duration, allowed });
     });
 
-    // Restricted jobs first, then longer prints first. This gives a practical farm estimate
-    // while respecting Plates that only certain printers can make.
     jobs.sort((a,b) => {
-      const ar = a.allowed.length ? 0 : 1;
-      const br = b.allowed.length ? 0 : 1;
+      const ar = a.allowed.length ? 0 : 1, br = b.allowed.length ? 0 : 1;
       if (ar !== br) return ar - br;
       if (a.allowed.length !== b.allowed.length) return a.allowed.length - b.allowed.length;
       return b.duration - a.duration;
@@ -107,92 +112,74 @@
 
     for (const job of jobs){
       const candidates = printers.filter(p => !job.allowed.length || job.allowed.includes(p.name));
-      if (!candidates.length){
-        return { ok:false, reason:`Plate ${job.no} لا توجد له طابعة متاحة` };
-      }
+      if (!candidates.length) return { ok:false, reason:`Plate ${job.no} لا توجد له طابعة متاحة` };
       candidates.sort((a,b) => a.available - b.available);
       candidates[0].available += job.duration;
     }
 
-    const seconds = Math.max(0, ...printers.map(p => p.available));
-    return { ok:true, seconds, printers:printers.length, jobs:jobs.length };
+    return { ok:true, seconds:Math.max(0, ...printers.map(p => p.available)) };
+  }
+
+  function writeResult(prefix, estimate){
+    const out = document.getElementById(prefix === 'pd' ? 'pdEta' : 'prodEta');
+    const meta = document.getElementById(prefix === 'pd' ? 'pdEtaMeta' : 'prodEtaMeta');
+    if (!out || !meta) return;
+    if (!estimate.ok){ out.textContent='—'; meta.textContent=estimate.reason; return; }
+    const finish = new Date(Date.now() + estimate.seconds * 1000);
+    const f = formatEta(finish);
+    out.innerHTML = `<span class="eta-time">${f.time}</span><span class="eta-day">${f.day}</span>`;
+    const hours = estimate.seconds / 3600;
+    const durationText = hours < 24 ? `حوالي ${Math.max(0, Math.round(hours*10)/10)} ساعة من الآن` : `حوالي ${Math.floor(hours/24)} يوم و${Math.round(hours%24)} ساعة`;
+    meta.textContent = `${durationText} · تقديري إذا استمر التشغيل بدون توقف`;
   }
 
   async function update(){
     if (busy) return;
-    const card = ensureCard();
-    if (!card) return;
+    const dashCard = ensureDashboardCard();
+    const prodCard = ensureProductionCard();
+    if (!dashCard && !prodCard) return;
     busy = true;
     try{
       const { data:{ session } } = await db.auth.getSession();
       if (!session?.user) return;
-
-      const sel = document.getElementById('pdashProject');
-      const projectId = sel?.value || localStorage.getItem(PROJECT_KEY);
+      const projectId = document.getElementById('projectSelect')?.value || document.getElementById('pdashProject')?.value || localStorage.getItem(PROJECT_KEY);
       if (!projectId) return;
 
       const [plr, ar] = await Promise.all([
-        db.from('production_plates')
-          .select('plate_no,target_qty,completed_qty,print_minutes,allowed_printers')
-          .eq('project_id', projectId)
-          .order('plate_no'),
-        db.from('production_assignments')
-          .select('printer_name,status,plate_no,started_at,manual_time_override,manual_finish_at')
-          .eq('project_id', projectId)
-          .order('printer_name')
+        db.from('production_plates').select('plate_no,target_qty,completed_qty,print_minutes,allowed_printers').eq('project_id', projectId).order('plate_no'),
+        db.from('production_assignments').select('printer_name,status,plate_no,started_at,manual_time_override,manual_finish_at').eq('project_id', projectId).order('printer_name')
       ]);
 
       if (plr.error || ar.error){
-        document.getElementById('pdEta').textContent = 'تعذر الحساب';
-        document.getElementById('pdEtaMeta').textContent = plr.error?.message || ar.error?.message || '';
+        const msg = plr.error?.message || ar.error?.message || 'تعذر الحساب';
+        if (dashCard){ document.getElementById('pdEta').textContent='تعذر الحساب'; document.getElementById('pdEtaMeta').textContent=msg; }
+        if (prodCard){ document.getElementById('prodEta').textContent='تعذر الحساب'; document.getElementById('prodEtaMeta').textContent=msg; }
         return;
       }
 
       const estimate = buildEstimate(plr.data || [], ar.data || []);
-      const out = document.getElementById('pdEta');
-      const meta = document.getElementById('pdEtaMeta');
-      if (!out || !meta) return;
-
-      if (!estimate.ok){
-        out.textContent = '—';
-        meta.textContent = estimate.reason;
-        return;
-      }
-
-      const finish = new Date(Date.now() + estimate.seconds * 1000);
-      const f = formatEta(finish);
-      out.innerHTML = `<span class="eta-time">${f.time}</span><span class="eta-day">${f.day}</span>`;
-
-      const hours = estimate.seconds / 3600;
-      const durationText = hours < 24
-        ? `حوالي ${Math.max(0, Math.round(hours * 10) / 10)} ساعة من الآن`
-        : `حوالي ${Math.floor(hours/24)} يوم و${Math.round(hours%24)} ساعة`;
-      meta.textContent = `${durationText} · تقديري إذا استمر التشغيل بدون توقف`;
-    } finally {
-      busy = false;
-    }
+      if (dashCard) writeResult('pd', estimate);
+      if (prodCard) writeResult('prod', estimate);
+    } finally { busy=false; }
   }
 
   function boot(){
     injectStyle();
     const tryStart = setInterval(() => {
-      if (ensureCard()){
-        clearInterval(tryStart);
-        update();
-      }
+      const a = ensureDashboardCard(), b = ensureProductionCard();
+      if (a || b){ clearInterval(tryStart); update(); }
     }, 250);
 
     document.addEventListener('change', e => {
-      if (e.target?.id === 'pdashProject') setTimeout(update, 80);
+      if (e.target?.id === 'pdashProject' || e.target?.id === 'projectSelect') setTimeout(update, 80);
     });
     document.addEventListener('click', e => {
-      if (e.target.closest?.('.nav [data-page="dashboard"]')) setTimeout(update, 150);
+      if (e.target.closest?.('.nav [data-page="dashboard"]') || e.target.closest?.('.nav [data-page="production"]')) setTimeout(update, 180);
+      if (e.target.closest?.('.printer-save,.printer-finish,.prod-save')) setTimeout(update, 700);
     });
-
-    clearInterval(timer);
-    timer = setInterval(update, 15000);
+    new MutationObserver(() => { if (ensureProductionCard()) setTimeout(update, 50); }).observe(document.body,{childList:true,subtree:true});
+    clearInterval(timer); timer=setInterval(update,15000);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
-  else boot();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true}); else boot();
 })();
