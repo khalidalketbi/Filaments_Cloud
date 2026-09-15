@@ -87,7 +87,7 @@
         <div class="ap-kpi"><span>تطبع الآن</span><strong>${printing}</strong></div>
         <div class="ap-kpi"><span>الفلمنت على الطابعات</span><strong>${grams.toFixed(0)}g</strong></div>
       </div>
-      <div class="ap-sort"><label for="allProjectsSort">فرز الطابعات</label><select id="allProjectsSort"><option value="default">الترتيب الأساسي</option><option value="time-asc">أقل وقت أولاً</option><option value="time-desc">أكثر وقت أولاً</option><option value="filament-asc">أقل فلمنت أولاً</option><option value="filament-desc">أعلى فلمنت أولاً</option></select></div>
+      <div class="ap-sort"><label for="allProjectsSort">فرز الطابعات</label><select id="allProjectsSort"><option value="default">الترتيب الأساسي</option><option value="time-asc">أقل وقت أولاً</option><option value="time-desc">أكثر وقت أولاً</option><option value="filament-asc">أقل فلمنت (g) أولاً</option><option value="filament-desc">أعلى فلمنت (g) أولاً</option></select></div>
       <section class="ap-all-printers">
         <div class="ap-printers">${sortedAll.length?sortedAll.map(a=>{
           const sec=secondsUntilDone(a,pmap);
