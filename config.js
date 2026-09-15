@@ -58,6 +58,7 @@ window.APP_CONFIG = {
     await load('./dashboard-pro.js');
     await load('./production-project-switcher.js');
     await load('./production-dashboard.js');
+    await load('./production-project-eta.js');
     await load('./production-tracking.js');
     await load('./production-all-projects.js');
     await load('./production-manual-time.js');
