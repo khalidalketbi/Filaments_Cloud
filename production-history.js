@@ -2,6 +2,7 @@
   const cfg=window.APP_CONFIG||{};
   if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
   const db=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const CURRENT_KEY='fm_current_project_id';
   let projectId=null;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmtDuration=sec=>{sec=Number(sec)||0;const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h?`${h}س ${m}د ${s}ث`:`${m}د ${s}ث`;};
@@ -15,8 +16,8 @@
     page.innerHTML=`
       <div class="panel">
         <div class="section-title"><h2>سجل الطباعة حسب الطابعة</h2><button id="prodHistoryRefresh" class="btn secondary small">تحديث</button></div>
+        <div class="toolbar"><select id="prodHistoryProject"><option value="">المشروع الحالي</option></select><select id="prodHistoryPrinter"><option value="">كل الطابعات</option></select><select id="prodHistoryPlate"><option value="">كل الـ Plates</option></select></div>
         <div id="prodHistorySummary" class="kpis"></div>
-        <div class="toolbar"><select id="prodHistoryPrinter"><option value="">كل الطابعات</option></select><select id="prodHistoryPlate"><option value="">كل الـ Plates</option></select></div>
         <div id="prodHistoryList" class="history-list"></div>
         <div id="prodHistoryStatus" class="status"></div>
       </div>`;
@@ -28,13 +29,28 @@
     document.getElementById('prodHistoryRefresh').onclick=load;
     document.getElementById('prodHistoryPrinter').onchange=load;
     document.getElementById('prodHistoryPlate').onchange=load;
-    document.addEventListener('click',e=>{const b=e.target.closest('.nav [data-page="history"]');if(b)setTimeout(load,0);});
+    document.getElementById('prodHistoryProject').onchange=e=>{
+      if(e.target.value){projectId=e.target.value;localStorage.setItem(CURRENT_KEY,projectId);}
+      load();
+    };
+    document.addEventListener('click',e=>{const b=e.target.closest('.nav [data-page="history"]');if(b){projectId=null;setTimeout(load,0);}});
   }
 
   async function ensureProject(){
     const {data:{session}}=await db.auth.getSession();if(!session?.user)return null;
-    const {data,error}=await db.from('production_projects').select('id').eq('user_id',session.user.id).eq('name','Plate 1-8').maybeSingle();
-    if(error)throw error;projectId=data?.id||null;return projectId;
+    const {data,error}=await db.from('production_projects').select('id,name,created_at').eq('user_id',session.user.id).order('created_at',{ascending:false});
+    if(error)throw error;
+    const projects=data||[];
+    const sel=document.getElementById('prodHistoryProject');
+    if(sel){
+      sel.innerHTML=projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    }
+    const saved=localStorage.getItem(CURRENT_KEY);
+    const chosen=projects.find(p=>p.id===saved)||projects[0]||null;
+    projectId=chosen?.id||null;
+    if(sel&&projectId) sel.value=projectId;
+    if(projectId) localStorage.setItem(CURRENT_KEY,projectId);
+    return projectId;
   }
 
   async function load(){
@@ -52,8 +68,8 @@
       const plates=[...new Set(rows.map(x=>x.plate_no))].sort((a,b)=>a-b);
       const prSel=document.getElementById('prodHistoryPrinter'),plSel=document.getElementById('prodHistoryPlate');
       const oldPr=prSel.value,oldPl=plSel.value;
-      if(printers.length && prSel.options.length===1) printers.forEach(x=>prSel.add(new Option(x,x)));
-      if(plates.length && plSel.options.length===1) plates.forEach(x=>plSel.add(new Option(`Plate ${x}`,x)));
+      prSel.innerHTML='<option value="">كل الطابعات</option>'+printers.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+      plSel.innerHTML='<option value="">كل الـ Plates</option>'+plates.map(x=>`<option value="${x}">Plate ${x}</option>`).join('');
       prSel.value=oldPr;plSel.value=oldPl;
       const totalG=rows.reduce((a,x)=>a+Number(x.grams_used||0),0),totalSec=rows.reduce((a,x)=>a+Number(x.actual_seconds||0),0);
       document.getElementById('prodHistorySummary').innerHTML=`<div class="kpi"><span>إجمالي الطبعات</span><strong>${rows.length}</strong></div><div class="kpi"><span>إجمالي الفلمنت</span><strong>${totalG.toFixed(0)}g</strong></div><div class="kpi"><span>إجمالي الوقت</span><strong>${fmtDuration(totalSec)}</strong></div>`;
