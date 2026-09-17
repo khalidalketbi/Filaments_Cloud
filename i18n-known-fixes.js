@@ -18,6 +18,10 @@
     'يطبع الآن':'Printing',
     'متوقفة':'Paused',
     'متوقف مؤقتًا':'Paused',
+    'متوقفة مؤقتًا':'Paused',
+    'متوقفة مؤقتاً':'Paused',
+    'المتبقي':'Remaining',
+    'الRemaining':'Remaining',
     'جاهزة':'Idle',
     'الحالي':'Current',
     'الفلمنت':'Filament',
@@ -207,6 +211,30 @@
     if(exact.has(t))return s.replace(t,exact.get(t));
     let x=t;
 
+    // Normalize strings that may already be partially translated by the base i18n pass.
+    if(/إذا تريد وقت مختلف/.test(x)){
+      x='If you need a different time from the Plate time, enter the remaining time manually. Manual time takes priority:';
+      return s.replace(t,x);
+    }
+    if(/يجمع نفس .*Plate/.test(x) || /أكبر عدد ممكن من/.test(x) && /Plate/.test(x)){
+      x='Groups the same Plate on as many printers as possible, then moves to the next Plate while respecting filament and restrictions.';
+      return s.replace(t,x);
+    }
+    if(/^(?:و)?يبقى\s*≈\s*([\d.]+)g?$/.test(x)){
+      x=x.replace(/^(?:و)?يبقى\s*≈\s*([\d.]+)g?$/,'Left ≈ $1g');
+      return s.replace(t,x);
+    }
+    if(/حوالي/.test(x) && /hours from now/i.test(x)){
+      x=x.replace(/\s*حوالي\s*/g,' About ').replace(/\s+/g,' ').trim();
+      if(/^([\d.]+)\s+About\s+hours from now$/i.test(x)){
+        x=x.replace(/^([\d.]+)\s+About\s+hours from now$/i,'About $1 hours from now');
+      }
+      return s.replace(t,x);
+    }
+    x=x
+      .replace(/الRemaining/g,'Remaining')
+      .replace(/\bمتوقفة مؤقت[ًااً]+\b/g,'Paused');
+
     // High-value complete dynamic patterns
     const patterns=[
       [/^(\d+) تطبع الآن · ([\d.]+) g على الطابعات$/,(_,a,g)=>`${a} printing now · ${g}g on printers`],
@@ -226,6 +254,8 @@
       [/^المتبقي:\s*(.+?)(?:\s*·\s*ينتهي\s*(.+))?$/,(_,a,b)=>`Remaining: ${a}${b?` · ends ${b}`:''}`],
       [/^موعد الانتهاء المتوقع:\s*(.+)$/,(_,a)=>`Estimated finish: ${a}`],
       [/^حوالي ([\d.]+) ساعة من الآن$/,(_,a)=>`About ${a} hours from now`],
+      [/^([\d.]+)\s+حوالي\s+hours from now$/i,(_,a)=>`About ${a} hours from now`],
+      [/^يبقى\s*≈\s*([\d.]+)g?$/,(_,a)=>`Left ≈ ${a}g`],
       [/^حوالي (\d+) يوم و(\d+) ساعة$/,(_,d,h)=>`About ${d}d ${h}h`],
       [/^Plate (\d+) لا توجد له طابعة متاحة$/,(_,p)=>`No eligible printer is available for Plate ${p}`],
       [/^موجود (\d+)\/(\d+) • باقي (\d+)$/,(_,a,b,c)=>`Available ${a}/${b} · ${c} remaining`],
@@ -248,7 +278,20 @@
     // Phrase replacements for mixed / compound dynamic strings
     const reps=[
       ['كل الطابعات من كل المشاريع في ترتيب واحد','All printers from all projects in one list'],
+      ['الإنتاج','Production'],
+      ['متوقفة مؤقتًا','Paused'],
+      ['متوقفة مؤقتاً','Paused'],
+      ['المتبقي','Remaining'],
+      ['حوالي','About'],
+      ['معاً','together'],
+      ['معًا','together'],
       ['يجمع نفس الـPlate على أكبر عدد ممكن من الطابعات، ثم ينتقل للـPlate التالي مع مراعاة الفلمنت والقيود','Groups the same Plate on as many printers as possible, then moves to the next Plate while respecting filament and restrictions'],
+      ['يجمع نفس الـPlate','Groups the same Plate'],
+      ['أكبر عدد ممكن من','as many'],
+      ['ثم ينتقل للـPlate التالي','then moves to the next Plate'],
+      ['مع مراعاة','while respecting'],
+      ['والقيود','and restrictions'],
+      ['ولقيود','and restrictions'],
       ['البداية تكون Plate','Start with Plate'],
       ['على','on'],
       ['طابعة قدر الإمكان','printers where possible'],
