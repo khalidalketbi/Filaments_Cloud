@@ -60,6 +60,7 @@ window.APP_CONFIG = {
     await load('./production-dashboard.js');
     await load('./production-project-eta.js');
     await load('./production-tracking.js');
+    await load('./production-finish-guard.js');
     await load('./production-all-projects.js');
     await load('./production-manual-time.js');
     await load('./production-printer-sort.js');
