@@ -6,6 +6,7 @@
   const n=v=>Number(v)||0;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const plateAllowed=(p,printerName)=>!Array.isArray(p?.allowed_printers)||!p.allowed_printers.length||p.allowed_printers.includes(printerName);
+  const MAX_JOBS_PER_PRINTER=10;
 
   function injectStyle(){
     if(document.getElementById('smartSuggestStyle')) return;
@@ -22,6 +23,7 @@
       #productionPage .smart-suggest-fit{font-size:12px;font-weight:900;white-space:nowrap}
       #productionPage .smart-suggest-warn{color:var(--warn)}
       #productionPage .smart-suggest-rank{font-size:10px;color:var(--muted);margin-top:3px}
+      #productionPage .smart-wave-note{margin-top:10px;padding:9px 10px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,var(--card2));border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));font-size:11px;line-height:1.6}
       @media(max-width:620px){#productionPage .smart-suggest-row{grid-template-columns:58px 1fr}.smart-suggest-fit{grid-column:2}}
     `;
     document.head.appendChild(s);
@@ -33,7 +35,7 @@
     if(!printersPanel || document.getElementById('smartSuggestPanel')) return;
     const panel=document.createElement('div');
     panel.id='smartSuggestPanel'; panel.className='smart-suggest';
-    panel.innerHTML=`<div class="smart-suggest-head"><div><h2 style="margin:0">اقتراح الطباعة الذكي</h2><div class="muted" style="font-size:12px">يوازن بين إكمال الأطقم واستغلال كل سبول لأقل بقايا ممكنة</div></div><button id="smartSuggestBtn" class="btn">اقترح شو أطبع</button></div><div id="smartSuggestBody" class="smart-suggest-list"><div class="muted">اضغط الزر للحصول على اقتراح.</div></div>`;
+    panel.innerHTML=`<div class="smart-suggest-head"><div><h2 style="margin:0">اقتراح الطباعة الذكي</h2><div class="muted" style="font-size:12px">يجمع نفس الـPlate على أكبر عدد ممكن من الطابعات، ثم ينتقل للـPlate التالي مع مراعاة الفلمنت والقيود</div></div><button id="smartSuggestBtn" class="btn">اقترح شو أطبع</button></div><div id="smartSuggestBody" class="smart-suggest-list"><div class="muted">اضغط الزر للحصول على اقتراح.</div></div>`;
     printersPanel.insertAdjacentElement('beforebegin',panel);
     document.getElementById('smartSuggestBtn').addEventListener('click',buildSuggestions);
   }
@@ -58,43 +60,58 @@
     return Math.max(0,Math.floor((end-Date.now())/1000));
   }
 
-  function generateSequences(plates, shortage, capacity, printerName){
-    const valid=plates.filter(p=>plateAllowed(p,printerName) && n(shortage.get(n(p.plate_no)))>0 && n(p.weight_g)>0 && n(p.weight_g)<=capacity);
-    const out=[];
-    const counts=new Map();
-    const seq=[];
+  function fmt(m){m=n(m);return `${Math.floor(m/60)}س ${m%60}د`;}
 
-    function pushCandidate(used){
-      if(!seq.length) return;
-      const distinct=new Set(seq.map(p=>n(p.plate_no))).size;
-      const urgency=seq.reduce((s,p)=>s+n(shortage.get(n(p.plate_no))),0);
-      const duplicatePenalty=seq.length-distinct;
-      out.push({seq:[...seq],used,left:capacity-used,distinct,urgency,duplicatePenalty});
-    }
+  function buildGroupedPlan(plates,printers,pmap,shortage){
+    const states=printers.map(a=>({
+      printer:a,
+      name:String(a.printer_name||'').trim(),
+      avail:availableAfterCurrent(a,pmap),
+      after:availableAfterCurrent(a,pmap),
+      freeAt:secondsUntilFree(a,pmap),
+      readyAt:secondsUntilFree(a,pmap),
+      used:0,
+      seq:[]
+    })).filter(s=>s.name);
 
-    function dfs(start,used,depth){
-      pushCandidate(used);
-      if(depth>=6) return;
-      for(let i=start;i<valid.length;i++){
-        const p=valid[i], no=n(p.plate_no), w=n(p.weight_g);
-        const c=counts.get(no)||0, max=n(shortage.get(no));
-        if(c>=max || used+w>capacity) continue;
-        counts.set(no,c+1); seq.push(p);
-        dfs(i,used+w,depth+1);
-        seq.pop(); counts.set(no,c);
+    // ابدأ بأكبر نقص لأنه عنق الزجاجة، ومع التعادل نمشي برقم Plate لسهولة المتابعة.
+    const priority=plates
+      .filter(p=>n(shortage.get(n(p.plate_no)))>0)
+      .sort((a,b)=>n(shortage.get(n(b.plate_no)))-n(shortage.get(n(a.plate_no))) || n(a.plate_no)-n(b.plate_no));
+
+    const waves=[];
+    for(const p of priority){
+      const no=n(p.plate_no), w=n(p.weight_g), duration=n(p.print_minutes)*60;
+      let need=n(shortage.get(no));
+      let waveNo=0;
+      while(need>0){
+        const candidates=states.filter(s=>
+          plateAllowed(p,s.name) &&
+          s.after>=w &&
+          s.seq.length<MAX_JOBS_PER_PRINTER
+        );
+        if(!candidates.length) break;
+
+        // أولاً الطابعة التي تفضى أسرع، ومع التعادل نحافظ على السبول الأكبر
+        // للمهام القادمة حتى لا نحشر المشروع في بقايا صغيرة.
+        candidates.sort((a,b)=>a.readyAt-b.readyAt || b.after-a.after || a.name.localeCompare(b.name,undefined,{numeric:true}));
+        const batch=candidates.slice(0,Math.min(need,candidates.length));
+        if(!batch.length) break;
+        waveNo++;
+        const names=[];
+        for(const s of batch){
+          s.seq.push(p);
+          s.after-=w;
+          s.used+=w;
+          s.readyAt+=duration;
+          names.push(s.name);
+        }
+        need-=batch.length;
+        waves.push({plate:no,waveNo,count:batch.length,printers:names});
       }
+      shortage.set(no,need);
     }
-    dfs(0,0,0);
-    return out;
-  }
-
-  function candidateScore(c,capacity){
-    const wastePenalty=c.left*4;
-    const urgencyBonus=c.urgency*10;
-    const diversityBonus=c.distinct*9;
-    const duplicatePenalty=c.duplicatePenalty*7;
-    const utilizationBonus=capacity>0?(c.used/capacity)*120:0;
-    return urgencyBonus+diversityBonus+utilizationBonus-wastePenalty-duplicatePenalty;
+    return {states,waves};
   }
 
   async function buildSuggestions(){
@@ -122,49 +139,25 @@
     const shortage=new Map();
     for(const p of plates) shortage.set(n(p.plate_no),Math.max(0,n(p.target_qty)-n(projected.get(n(p.plate_no)))));
 
-    const order=[...printers].sort((a,b)=>{
-      const ga=availableAfterCurrent(a,pmap), gb=availableAfterCurrent(b,pmap);
-      if(ga!==gb) return ga-gb;
-      return secondsUntilFree(a,pmap)-secondsUntilFree(b,pmap) || String(a.printer_name).localeCompare(String(b.printer_name),undefined,{numeric:true});
-    });
+    const plan=buildGroupedPlan(plates,printers,pmap,shortage);
+    const recs=plan.states.sort((a,b)=>a.freeAt-b.freeAt || a.readyAt-b.readyAt || String(a.name).localeCompare(String(b.name),undefined,{numeric:true}));
+    const unscheduled=plates.map(p=>({no:n(p.plate_no),qty:n(shortage.get(n(p.plate_no)))})).filter(x=>x.qty>0);
 
-    const recs=[];
-    for(const printer of order){
-      const avail=availableAfterCurrent(printer,pmap);
-      const candidates=generateSequences(plates,shortage,avail,printer.printer_name);
-      if(!candidates.length){
-        const stillNeeded=[...shortage.values()].some(q=>q>0);
-        recs.push({printer,seq:[],avail,after:avail,reason:stillNeeded?'لا توجد تركيبة ناقصة تناسب الفلمنت أو صلاحية الطابعة':'المشروع مكتمل حسب الطباعة الحالية'});
-        continue;
-      }
+    const firstWave=plan.waves[0];
+    const note=firstWave
+      ? `<div class="smart-wave-note"><b>الخطة المجمعة:</b> البداية تكون Plate ${firstWave.plate} على ${firstWave.count} طابعة قدر الإمكان. النظام يكمل نفس الـPlate أولاً، وبعدها ينتقل للي بعده حسب النقص والفلمنت.</div>`
+      : '';
 
-      candidates.sort((a,b)=>{
-        const sa=candidateScore(a,avail), sb=candidateScore(b,avail);
-        if(sa!==sb) return sb-sa;
-        if(a.left!==b.left) return a.left-b.left;
-        if(a.distinct!==b.distinct) return b.distinct-a.distinct;
-        return b.used-a.used;
-      });
-      const best=candidates[0];
-      for(const p of best.seq){
-        const no=n(p.plate_no);
-        shortage.set(no,Math.max(0,n(shortage.get(no))-1));
-      }
-      recs.push({printer,seq:best.seq,avail,after:best.left,used:best.used});
-    }
-
-    recs.sort((a,b)=>secondsUntilFree(a.printer,pmap)-secondsUntilFree(b.printer,pmap) || a.after-b.after);
-
-    body.innerHTML=recs.map((r,idx)=>{
+    body.innerHTML=note+recs.map((r,idx)=>{
       const current=r.printer.status==='printing'&&r.printer.plate_no?`بعد انتهاء Plate ${n(r.printer.plate_no)}`:'الآن';
-      if(!r.seq.length) return `<div class="smart-suggest-row"><div><div class="smart-suggest-printer">${esc(r.printer.printer_name)}</div><div class="smart-suggest-rank">#${idx+1}</div></div><div><div class="smart-suggest-choice">—</div><div class="smart-suggest-reason">${esc(r.reason)} · المتاح المتوقع ${r.avail.toFixed(0)}g</div></div><div class="smart-suggest-fit smart-suggest-warn">لا اقتراح</div></div>`;
+      if(!r.seq.length){
+        return `<div class="smart-suggest-row"><div><div class="smart-suggest-printer">${esc(r.name)}</div><div class="smart-suggest-rank">#${idx+1}</div></div><div><div class="smart-suggest-choice">—</div><div class="smart-suggest-reason">لا توجد مهمة ناقصة تناسب الفلمنت المتبقي أو صلاحية الطابعة · المتاح المتوقع ${r.avail.toFixed(0)}g</div></div><div class="smart-suggest-fit smart-suggest-warn">لا اقتراح</div></div>`;
+      }
       const seqText=r.seq.map(p=>`P${n(p.plate_no)} ${n(p.weight_g)}g`).join(' → ');
       const totalMin=r.seq.reduce((s,p)=>s+n(p.print_minutes),0);
-      return `<div class="smart-suggest-row"><div><div class="smart-suggest-printer">${esc(r.printer.printer_name)}</div><div class="smart-suggest-rank">#${idx+1}</div></div><div><div class="smart-suggest-choice">${current}: ${seqText}</div><div class="smart-suggest-reason">استخدام ${r.used.toFixed(0)}g · وقت إضافي ${fmt(totalMin)} · محسوب مع مخزون المشروع والطبعات الحالية</div></div><div class="smart-suggest-fit">يبقى ≈ ${r.after.toFixed(0)}g</div></div>`;
-    }).join('');
+      return `<div class="smart-suggest-row"><div><div class="smart-suggest-printer">${esc(r.name)}</div><div class="smart-suggest-rank">#${idx+1}</div></div><div><div class="smart-suggest-choice">${current}: ${seqText}</div><div class="smart-suggest-reason">استخدام ${r.used.toFixed(0)}g · وقت إضافي ${fmt(totalMin)} · مجمّع مع نفس الـPlate قدر الإمكان</div></div><div class="smart-suggest-fit">يبقى ≈ ${r.after.toFixed(0)}g</div></div>`;
+    }).join('')+(unscheduled.length?`<div class="smart-wave-note smart-suggest-warn"><b>يبقى بدون توزيع من السبولات الحالية:</b> ${unscheduled.map(x=>`P${x.no} × ${x.qty}`).join('، ')}. بعد Refill يعاد الحساب.</div>`:'');
   }
-
-  function fmt(m){m=n(m);return `${Math.floor(m/60)}س ${m%60}د`;}
 
   function boot(){
     ensurePanel();
