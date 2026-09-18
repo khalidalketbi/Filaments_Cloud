@@ -41,8 +41,8 @@
       box.innerHTML=`
         <div class="manual-time-title">إذا تريد وقت مختلف عن وقت الـPlate، أدخل الوقت المتبقي يدويًا. الوقت اليدوي تكون له الأولوية:</div>
         <div class="manual-time-row">
-          <label>ساعات<input class="manual-rem-h" type="number" min="0" max="999" step="1" value="0"></label>
-          <label>دقائق<input class="manual-rem-m" type="number" min="0" max="59" step="1" value="0"></label>
+          <label>ساعات<input class="manual-rem-h" type="number" inputmode="numeric" min="0" max="999" step="1" value=""></label>
+          <label>دقائق<input class="manual-rem-m" type="number" inputmode="numeric" min="0" max="59" step="1" value=""></label>
           <button type="button" class="btn secondary small manual-time-save">استخدم الوقت اليدوي</button>
         </div>`;
       timer.insertAdjacentElement('afterend',box);
